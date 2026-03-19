@@ -219,3 +219,11 @@ export const MOCK_WORKSPACES = [
   { id: 'ws-2', name: 'Team Alpha', type: 'Team' },
   { id: 'ws-3', name: 'API Projects', type: 'Personal' },
 ];
+
+export const MOCK_NOTIFICATIONS = [
+  { id: 1, type: 'update', title: 'Postie v11.1 available', body: 'New features: improved API documentation and test runner.', time: '2h ago', read: false },
+  { id: 2, type: 'collab', title: 'Team Alpha shared a collection', body: '"Payment Gateway API" has been shared with you.', time: '5h ago', read: false },
+  { id: 3, type: 'info', title: 'API usage report ready', body: 'Your monthly API usage report for March is ready to view.', time: '1d ago', read: true },
+  { id: 4, type: 'warn', title: 'API key expiring soon', body: 'Your API key "prod-key-789" expires in 7 days.', time: '2d ago', read: true },
+  { id: 5, type: 'info', title: 'New monitor alert', body: 'Monitor "Health Check" ran successfully 100 times.', time: '3d ago', read: true },
+];

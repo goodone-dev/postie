@@ -1,15 +1,8 @@
 import React, { useState } from 'react';
 import { X, Bell, Settings, User, Moon, Sun, Globe, Shield, Zap, Database, Key, Palette, ChevronRight, Check, LogOut, CreditCard, HelpCircle } from 'lucide-react';
+import { MOCK_NOTIFICATIONS } from '../../mock';
 
 /* ─── NOTIFICATION PANEL ─────────────────────────────────────────────── */
-const MOCK_NOTIFICATIONS = [
-  { id: 1, type: 'update', title: 'Postie v11.1 available', body: 'New features: improved API documentation and test runner.', time: '2h ago', read: false },
-  { id: 2, type: 'collab', title: 'Team Alpha shared a collection', body: '"Payment Gateway API" has been shared with you.', time: '5h ago', read: false },
-  { id: 3, type: 'info', title: 'API usage report ready', body: 'Your monthly API usage report for March is ready to view.', time: '1d ago', read: true },
-  { id: 4, type: 'warn', title: 'API key expiring soon', body: 'Your API key "prod-key-789" expires in 7 days.', time: '2d ago', read: true },
-  { id: 5, type: 'info', title: 'New monitor alert', body: 'Monitor "Health Check" ran successfully 100 times.', time: '3d ago', read: true },
-];
-
 const NOTIF_ICONS = {
   update: { bg: '#1e3a5f', color: '#6bc5f8', label: 'UP' },
   collab: { bg: '#1e3a2f', color: '#3ecf8e', label: 'CO' },
