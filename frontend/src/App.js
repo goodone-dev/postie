@@ -5,7 +5,8 @@ import RequestPanel from './components/Postie/RequestPanel';
 import ResponsePanel from './components/Postie/ResponsePanel';
 import EnvironmentEditor from './components/Postie/EnvironmentEditor';
 import { NotificationPanel, SettingsModal, UserModal } from './components/Postie/TopModals';
-import { DEFAULT_REQUEST, METHOD_COLORS, MOCK_ENVIRONMENTS, MOCK_WORKSPACES } from './mock';
+import { DEFAULT_REQUEST, METHOD_COLORS, MOCK_ENVIRONMENTS } from './mock';
+import { CreateWorkspace, ListWorkspaces, UpdateWorkspace, DeleteWorkspace } from './wailsjs/go/main/App';
 import { Plus, X, Settings, Bell, Search, ChevronDown, Layers, Check, Globe } from 'lucide-react';
 import './App.css';
 
@@ -35,8 +36,8 @@ function App() {
   const [envDropdownOpen, setEnvDropdownOpen] = useState(false);
   const [environments, setEnvironments] = useState(MOCK_ENVIRONMENTS);
   // Workspace state
-  const [workspaces, setWorkspaces] = useState(MOCK_WORKSPACES);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState('ws-1');
+  const [workspaces, setWorkspaces] = useState([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState('');
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
@@ -44,6 +45,18 @@ function App() {
   const [editingWorkspaceName, setEditingWorkspaceName] = useState('');
   const [renamingWorkspaceId, setRenamingWorkspaceId] = useState(null);
   const [renamingWorkspaceName, setRenamingWorkspaceName] = useState('');
+
+  // Fetch initial workspaces
+  useEffect(() => {
+    ListWorkspaces()
+      .then((data) => {
+        if (data && data.length > 0) {
+          setWorkspaces(data);
+          setActiveWorkspaceId(data[0].id);
+        }
+      })
+      .catch((err) => console.error("Error fetching workspaces:", err));
+  }, []);
   // Modal states
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -280,14 +293,20 @@ function App() {
   const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId);
   const selectedEnv = MOCK_ENVIRONMENTS.find(e => e.id === selectedEnvId);
 
-  const createWorkspace = () => {
+  const createWorkspace = async () => {
     if (!newWorkspaceName.trim()) return;
-    const ws = { id: `ws-${Date.now()}`, name: newWorkspaceName.trim(), type: 'Personal' };
-    setWorkspaces(prev => [...prev, ws]);
-    setActiveWorkspaceId(ws.id);
-    setNewWorkspaceName('');
-    setShowCreateWorkspace(false);
-    setWorkspaceDropdownOpen(false);
+    try {
+      const ws = await CreateWorkspace({ name: newWorkspaceName.trim() });
+      if (ws) {
+        setWorkspaces(prev => [...prev, ws]);
+        setActiveWorkspaceId(ws.id);
+        setNewWorkspaceName('');
+        setShowCreateWorkspace(false);
+        setWorkspaceDropdownOpen(false);
+      }
+    } catch (e) {
+      console.error('Failed to create workspace', e);
+    }
   };
 
   const saveAsSample = () => {
@@ -354,11 +373,26 @@ function App() {
                       value={renamingWorkspaceName}
                       onChange={e => setRenamingWorkspaceName(e.target.value)}
                       onBlur={() => {
-                        if (renamingWorkspaceName.trim()) setWorkspaces(prev => prev.map(w => w.id === ws.id ? { ...w, name: renamingWorkspaceName.trim() } : w));
+                        if (renamingWorkspaceName.trim()) {
+                          UpdateWorkspace(ws.id, { name: renamingWorkspaceName.trim() })
+                            .then(updated => {
+                              if(updated) setWorkspaces(prev => prev.map(w => w.id === ws.id ? updated : w));
+                            })
+                            .catch(console.error);
+                        }
                         setRenamingWorkspaceId(null);
                       }}
                       onKeyDown={e => {
-                        if (e.key === 'Enter') { if (renamingWorkspaceName.trim()) setWorkspaces(prev => prev.map(w => w.id === ws.id ? { ...w, name: renamingWorkspaceName.trim() } : w)); setRenamingWorkspaceId(null); }
+                        if (e.key === 'Enter') {
+                          if (renamingWorkspaceName.trim()) {
+                            UpdateWorkspace(ws.id, { name: renamingWorkspaceName.trim() })
+                              .then(updated => {
+                                if(updated) setWorkspaces(prev => prev.map(w => w.id === ws.id ? updated : w));
+                              })
+                              .catch(console.error);
+                          }
+                          setRenamingWorkspaceId(null);
+                        }
                         if (e.key === 'Escape') setRenamingWorkspaceId(null);
                       }}
                       onClick={e => e.stopPropagation()}
@@ -386,7 +420,13 @@ function App() {
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                         </button>
                         {workspaces.length > 1 && (
-                          <button title="Delete" onClick={e => { e.stopPropagation(); if (ws.id === activeWorkspaceId) setActiveWorkspaceId(workspaces.find(w => w.id !== ws.id)?.id || ''); setWorkspaces(prev => prev.filter(w => w.id !== ws.id)); }}
+                          <button title="Delete" onClick={e => {
+                             e.stopPropagation();
+                             DeleteWorkspace(ws.id).then(() => {
+                               if (ws.id === activeWorkspaceId) setActiveWorkspaceId(workspaces.find(w => w.id !== ws.id)?.id || '');
+                               setWorkspaces(prev => prev.filter(w => w.id !== ws.id));
+                             }).catch(console.error);
+                          }}
                             style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 3, borderRadius: 3, display: 'flex', transition: 'color .1s' }}
                             onMouseEnter={e => { e.currentTarget.style.color = '#f93e3e'; }}
                             onMouseLeave={e => { e.currentTarget.style.color = '#555'; }}

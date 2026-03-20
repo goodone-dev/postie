@@ -1,13 +1,14 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
   "name": "postie",
-  "outputfilename": "postie",
+  "outputfilename": "Postie",
+  "wailsjsdir": "./frontend/src",
   "frontend:install": "yarn install",
   "frontend:build": "yarn build",
   "frontend:dev:watcher": "yarn start",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "Bagus Abdul Kurniawan",
-    "email": "bagus.ak95@gmail.com"
+    "name": "GoodOne",
+    "email": "hello@goodone.dev"
   }
 }
