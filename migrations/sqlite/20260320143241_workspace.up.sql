@@ -4,4 +4,4 @@ CREATE TABLE IF NOT EXISTS workspaces (
     slug VARCHAR NOT NULL,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL
-)
+);

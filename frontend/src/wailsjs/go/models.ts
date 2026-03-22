@@ -1,12 +1,12 @@
 export namespace workspace {
-
+	
 	export class CreateWorkspaceRequest {
 	    name: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new CreateWorkspaceRequest(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
@@ -20,11 +20,11 @@ export namespace workspace {
 	    updated_at?: any;
 	    name: string;
 	    slug: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new Workspace(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
@@ -33,7 +33,7 @@ export namespace workspace {
 	        this.name = source["name"];
 	        this.slug = source["slug"];
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -54,3 +54,4 @@ export namespace workspace {
 	}
 
 }
+

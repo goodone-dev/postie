@@ -6,9 +6,9 @@ import (
 )
 
 type Workspace struct {
-	database.BaseEntity[uuid.UUID] `bson:",inline"`
-	Name                           string `json:"name"`
-	Slug                           string `json:"slug"`
+	database.BaseEntity[uuid.UUID]
+	Name string `json:"name"`
+	Slug string `json:"slug"`
 }
 
 func (Workspace) TableName() string {

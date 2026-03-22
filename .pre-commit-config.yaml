@@ -65,11 +65,13 @@ repos:
         stages: [pre-commit]
         name: end-of-file-fixer
         description: Fix end of file issues
+        exclude: ^frontend/src/wailsjs/
 
       - id: trailing-whitespace
         stages: [pre-commit]
         name: trailing-whitespace
         description: Remove trailing whitespace
+        exclude: ^frontend/src/wailsjs/
 
       - id: check-added-large-files
         stages: [pre-commit]

@@ -12,9 +12,9 @@ type Entity interface {
 }
 
 type BaseEntity[I any] struct {
-	ID        I          `json:"id" bson:"_id,omitempty"`
-	CreatedAt *time.Time `json:"created_at" bson:"created_at"`
-	UpdatedAt *time.Time `json:"updated_at" bson:"updated_at"`
+	ID        I          `json:"id"`
+	CreatedAt *time.Time `json:"created_at"`
+	UpdatedAt *time.Time `json:"updated_at"`
 }
 
 func (b *BaseEntity[I]) BeforeCreate(tx *gorm.DB) (err error) {

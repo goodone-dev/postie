@@ -52,16 +52,12 @@ import (
 )
 
 type ${ENTITY_NAME} struct {
-	database.BaseEntity[uuid.UUID] \`bson:",inline"\`
+	database.BaseEntity[uuid.UUID]
 	// Add your fields here
 }
 
 func (${ENTITY_NAME}) TableName() string {
 	return "${ENTITY_SNAKE}s"
-}
-
-func (${ENTITY_NAME}) RepositoryName() string {
-	return "${ENTITY_NAME}Repository"
 }
 EOF
 
