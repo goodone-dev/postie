@@ -244,13 +244,13 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
               <div style={{ width: 26, height: 26, borderRadius: 6, background: isActive ? '#FF6C37' : '#2d2d2d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '1px solid #3d3d3d' }}>
                 <Globe size={12} style={{ color: isActive ? '#fff' : '#888' }} />
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                 {isEditing ? (
                   <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={() => commitEdit(env)} onCancel={() => setInlineEdit(null)}
-                    extraStyle={{ height: '15px', lineHeight: '15px' }} />
+                    extraStyle={{ fontWeight: 400, height: '15px', lineHeight: '15px', width: '100%', boxSizing: 'border-box' }} />
                 ) : (
                   <div onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ id: env.id, value: env.name }); }}
-                    style={{ color: '#e0e0e0', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', height: '15px', lineHeight: '15px' }}>{env.name}</div>
+                    style={{ color: '#e0e0e0', fontSize: 12, fontWeight: 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', height: '15px', lineHeight: '15px' }}>{env.name}</div>
                 )}
                 <div style={{ color: '#666', fontSize: 10 }}>{env.variables.filter(v => v.key).length} variable{env.variables.filter(v => v.key).length !== 1 ? 's' : ''}</div>
               </div>
@@ -733,7 +733,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
               {item.isOpen ? <FolderOpen size={12} /> : <Folder size={12} />}
             </span>
             {isEditing ? (
-              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} extraStyle={{ fontSize: 11 }} />
+              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} extraStyle={{ fontSize: 11, height: '16px', lineHeight: '16px' }} />
             ) : (
               <span
                 onClick={() => toggleFolOpen(col.id, item.id)}
