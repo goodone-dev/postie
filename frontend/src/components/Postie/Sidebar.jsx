@@ -1,10 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   ChevronRight, ChevronDown, Plus, Search, FolderOpen, Folder,
   Clock, Star, MoreHorizontal, Download, FolderPlus, Copy,
-  Trash2, Pencil, Globe, File
+  Trash2, Pencil, Globe, File, ArrowRight
 } from 'lucide-react';
-import { MOCK_COLLECTIONS, METHOD_COLORS } from '../../mock';
+import { METHOD_COLORS } from '../../mock';
+import {
+  ListCollections, CreateCollection, RenameCollection, UpdateCollectionFavorite,
+  DeleteCollection, DuplicateCollection, MoveCollection,
+} from '../../wailsjs/go/main/App';
+
 
 const uid = () => `id-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -36,6 +41,53 @@ const ConfirmModal = ({ title, message, onConfirm, onClose }) => (
     </div>
   </div>
 );
+
+/* ─── MOVE TO WORKSPACE MODAL ────────────────────────────────── */
+const MoveModal = ({ collection, workspaces, currentWorkspaceId, onMove, onClose }) => {
+  const [selectedId, setSelectedId] = useState('');
+  const others = workspaces.filter(w => w.id !== currentWorkspaceId);
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ width: 360, background: '#1e1e1e', border: '1px solid #3d3d3d', borderRadius: 8, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.7)' }}>
+        <div style={{ color: '#e0e0e0', fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Move to Another Workspace</div>
+        <div style={{ color: '#888', fontSize: 12, marginBottom: 16 }}>Move <b style={{ color: '#e8a87c' }}>«{collection.name}»</b> to:</div>
+        {others.length === 0 ? (
+          <div style={{ color: '#666', fontSize: 12, padding: '12px 0' }}>No other workspaces available.</div>
+        ) : (
+          <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #2d2d2d', borderRadius: 6, marginBottom: 16 }}>
+            {others.map(ws => (
+              <div key={ws.id}
+                onClick={() => setSelectedId(ws.id)}
+                style={{ padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, background: selectedId === ws.id ? 'rgba(255,108,55,0.12)' : 'transparent', borderLeft: selectedId === ws.id ? '2px solid #FF6C37' : '2px solid transparent', transition: 'background .1s' }}
+                onMouseEnter={e => { if (selectedId !== ws.id) e.currentTarget.style.background = '#2a2a2a'; }}
+                onMouseLeave={e => { if (selectedId !== ws.id) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div style={{ width: 28, height: 28, borderRadius: 6, background: selectedId === ws.id ? '#FF6C37' : '#2d2d2d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{ws.name.charAt(0)}</span>
+                </div>
+                <span style={{ color: '#e0e0e0', fontSize: 12 }}>{ws.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose}
+            style={{ background: 'none', border: '1px solid #3d3d3d', borderRadius: 4, padding: '6px 16px', color: '#ccc', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#666'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#3d3d3d'; }}
+          >Cancel</button>
+          <button onClick={() => { if (selectedId) { onMove(selectedId); onClose(); } }}
+            disabled={!selectedId}
+            style={{ background: selectedId ? '#FF6C37' : '#555', border: 'none', borderRadius: 4, padding: '6px 16px', color: '#fff', fontSize: 12, cursor: selectedId ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, transition: 'background .15s' }}
+            onMouseEnter={e => { if (selectedId) e.currentTarget.style.background = '#e55a28'; }}
+            onMouseLeave={e => { if (selectedId) e.currentTarget.style.background = '#FF6C37'; }}
+          ><ArrowRight size={13} />Move</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /* ─── CONTEXT MENU ────────────────────────────────────────────── */
 const CtxMenu = ({ x, y, items, onClose }) => {
@@ -199,12 +251,15 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
 };
 
 /* ─── SIDEBAR ─────────────────────────────────────────────────── */
-const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv, environments, setEnvironments, activeTabId }) => {
+const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv, environments, setEnvironments, activeTabId, activeWorkspaceId, workspaces }) => {
   const [activeTab, setActiveTab] = useState('collections');
-  const [collections, setCollections] = useState(MOCK_COLLECTIONS);
+  // collections: backend data merged with local UI state (isOpen, items)
+  const [collections, setCollections] = useState([]);
+  const [colLoading, setColLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [ctx, setCtx] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [moveModal, setMoveModal] = useState(null); // { collection }
   const [inlineEdit, setInlineEdit] = useState(null); // { id, value, onCommit }
   const [expandedExamples, setExpandedExamples] = useState({});
   const [drag, setDrag] = useState(null);
@@ -219,6 +274,30 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     if (importFolderRef.current) importFolderRef.current.webkitdirectory = true;
   }, []);
 
+  // Fetch collections from backend whenever workspace changes
+  const fetchCollections = useCallback(() => {
+    if (!activeWorkspaceId) return;
+    setCollections([]);   // clear stale collections immediately
+    setColLoading(true);
+    ListCollections(activeWorkspaceId)
+      .then(data => {
+        if (data) {
+          setCollections(data.map(col => ({
+            ...col,
+            isOpen: false,
+            isFavorite: col.is_favorite ?? false,
+            items: [],
+          })));
+        }
+      })
+      .catch(err => console.error('Failed to fetch collections:', err))
+      .finally(() => setColLoading(false));
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    fetchCollections();
+  }, [fetchCollections]);
+
   // Close import menu on outside click
   useEffect(() => {
     if (!showImportMenu) return;
@@ -226,6 +305,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     setTimeout(() => document.addEventListener('click', handle), 0);
     return () => document.removeEventListener('click', handle);
   }, [showImportMenu]);
+
 
   /* ── inline edit ─── */
   const startEdit = (id, value, onCommit) => setInlineEdit({ id, value, onCommit });
@@ -237,7 +317,12 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
 
   const toggleColOpen = (colId) => setCollections(prev => prev.map(c => c.id === colId ? { ...c, isOpen: !c.isOpen } : c));
   const toggleFolOpen = (colId, folId) => setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: c.items.map(it => it.id === folId ? { ...it, isOpen: !it.isOpen } : it) }));
-  const toggleFav = (colId) => setCollections(prev => prev.map(c => c.id === colId ? { ...c, isFavorite: !c.isFavorite } : c));
+  const toggleFav = (col) => {
+    const newVal = !col.isFavorite;
+    setCollections(prev => prev.map(c => c.id === col.id ? { ...c, isFavorite: newVal } : c));
+    UpdateCollectionFavorite(col.id, newVal).catch(console.error);
+  };
+
 
   /* ── drag & drop ─── */
   const onDragStart = (e, info) => { setDrag(info); e.dataTransfer.effectAllowed = 'move'; e.stopPropagation(); };
@@ -281,18 +366,28 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
 
   /* ── import ─── */
   const parseCollection = (data, fileName) => {
-    const col = {
-      id: uid(), name: data.info?.name || fileName, isOpen: true, isFavorite: false,
-      items: (data.item || []).filter(it => it.request).map(it => ({
-        type: 'request', id: uid(), name: it.name || 'Request', method: it.request?.method || 'GET',
-        url: (typeof it.request?.url === 'string' ? it.request.url : it.request?.url?.raw) || '',
-        headers: (it.request?.header || []).map(h => ({ key: h.key, value: h.value, enabled: !h.disabled })),
-        params: [], pathVariables: [],
-        body: { type: 'none', rawType: 'JSON', raw: it.request?.body?.raw || '', formData: [], urlEncoded: [] },
-        auth: { type: 'none' }, examples: []
-      }))
-    };
-    setCollections(prev => [...prev, col]);
+    const collectionName = data.info?.name || fileName;
+    const localItems = (data.item || []).filter(it => it.request).map(it => ({
+      type: 'request', id: uid(), name: it.name || 'Request', method: it.request?.method || 'GET',
+      url: (typeof it.request?.url === 'string' ? it.request.url : it.request?.url?.raw) || '',
+      headers: (it.request?.header || []).map(h => ({ key: h.key, value: h.value, enabled: !h.disabled })),
+      params: [], pathVariables: [],
+      body: { type: 'none', rawType: 'JSON', raw: it.request?.body?.raw || '', formData: [], urlEncoded: [] },
+      auth: { type: 'none' }, examples: []
+    }));
+    if (activeWorkspaceId) {
+      CreateCollection({ workspace_id: activeWorkspaceId, name: collectionName })
+        .then(col => {
+          if (col) setCollections(prev => [...prev, { ...col, isOpen: true, isFavorite: col.is_favorite ?? false, items: localItems }]);
+        })
+        .catch(() => {
+          const fallback = { id: uid(), name: collectionName, isOpen: true, isFavorite: false, items: localItems };
+          setCollections(prev => [...prev, fallback]);
+        });
+    } else {
+      const col = { id: uid(), name: collectionName, isOpen: true, isFavorite: false, items: localItems };
+      setCollections(prev => [...prev, col]);
+    }
   };
 
   const handleImportFile = (e) => {
@@ -310,20 +405,69 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     }); e.target.value = '';
   };
 
-  /* ── context menus ─── */
+  /* ── collection context menu ─── */
   const colMenu = (col, e) => {
     e.stopPropagation();
     setCtx({
       x: e.clientX, y: e.clientY, items: [
-        { icon: <FolderPlus size={12} />, label: 'Add Folder', action: () => setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'folder', id: uid(), name: 'New Folder', isOpen: true, items: [] }] })) },
-        { icon: <Plus size={12} />, label: 'Add Request', action: () => setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'request', id: uid(), name: 'New Request', method: 'GET', url: '', headers: [], params: [], pathVariables: [], body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] }, auth: { type: 'none' }, examples: [] }] })) },
-        { icon: <Pencil size={12} />, label: 'Rename', action: () => startEdit(col.id, col.name, name => setCollections(prev => prev.map(c => c.id === col.id ? { ...c, name } : c))) },
-        { icon: <Copy size={12} />, label: 'Duplicate', action: () => setCollections(prev => { const idx = prev.findIndex(c => c.id === col.id); const arr = [...prev]; arr.splice(idx + 1, 0, cloneItem(col)); return arr; }) },
+        {
+          icon: <FolderPlus size={12} />, label: 'Add Folder',
+          action: () => setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'folder', id: uid(), name: 'New Folder', isOpen: true, items: [] }] }))
+        },
+        {
+          icon: <Plus size={12} />, label: 'Add Request',
+          action: () => setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'request', id: uid(), name: 'New Request', method: 'GET', url: '', headers: [], params: [], pathVariables: [], body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] }, auth: { type: 'none' }, examples: [] }] }))
+        },
         'sep',
-        { icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({ title: 'Delete Collection', message: `Delete "${col.name}"? All requests will be permanently lost.`, onConfirm: () => setCollections(prev => prev.filter(c => c.id !== col.id)) }) }
+        {
+          icon: <Pencil size={12} />, label: 'Rename',
+          action: () => startEdit(col.id, col.name, name => {
+            RenameCollection(col.id, name)
+              .then(updated => {
+                if (updated) setCollections(prev => prev.map(c => c.id === col.id ? { ...c, name: updated.name } : c));
+              })
+              .catch(console.error);
+          })
+        },
+        {
+          icon: <Copy size={12} />, label: 'Duplicate',
+          action: () => {
+            DuplicateCollection(col.id)
+              .then(newCol => {
+                if (newCol) {
+                  const cloned = { ...newCol, isOpen: false, isFavorite: newCol.is_favorite ?? false, items: [] };
+                  setCollections(prev => {
+                    const idx = prev.findIndex(c => c.id === col.id);
+                    const arr = [...prev];
+                    arr.splice(idx + 1, 0, cloned);
+                    return arr;
+                  });
+                }
+              })
+              .catch(console.error);
+          }
+        },
+        {
+          icon: <Trash2 size={12} />, label: 'Delete', danger: true,
+          action: () => setConfirmDel({
+            title: 'Delete Collection',
+            message: `Delete "${col.name}"? All requests will be permanently lost.`,
+            onConfirm: () => {
+              DeleteCollection(col.id)
+                .then(() => setCollections(prev => prev.filter(c => c.id !== col.id)))
+                .catch(console.error);
+            }
+          })
+        },
+        'sep',
+        {
+          icon: <ArrowRight size={12} />, label: 'Move',
+          action: () => setMoveModal({ collection: col })
+        }
       ]
     });
   };
+
 
   const folMenu = (col, fol, e) => {
     e.stopPropagation();
@@ -446,6 +590,22 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     <>
       {ctx && <CtxMenu x={ctx.x} y={ctx.y} items={ctx.items} onClose={() => setCtx(null)} />}
       {confirmDel && <ConfirmModal {...confirmDel} onClose={() => setConfirmDel(null)} />}
+      {moveModal && (
+        <MoveModal
+          collection={moveModal.collection}
+          workspaces={workspaces || []}
+          currentWorkspaceId={activeWorkspaceId}
+          onMove={(targetWorkspaceId) => {
+            MoveCollection(moveModal.collection.id, { target_workspace_id: targetWorkspaceId })
+              .then(() => {
+                // Remove from current workspace view
+                setCollections(prev => prev.filter(c => c.id !== moveModal.collection.id));
+              })
+              .catch(console.error);
+          }}
+          onClose={() => setMoveModal(null)}
+        />
+      )}
       <input ref={importFileRef} type="file" accept=".json" onChange={handleImportFile} style={{ display: 'none' }} />
       <input ref={importFolderRef} type="file" accept=".json" multiple onChange={handleImportFolder} style={{ display: 'none' }} />
 
@@ -482,9 +642,21 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
                   />
                 </div>
                 <button onClick={() => {
-                  const col = { id: uid(), name: 'New Collection', isOpen: true, isFavorite: false, items: [] };
-                  setCollections(prev => [...prev, col]);
-                  startEdit(col.id, col.name, name => setCollections(prev => prev.map(c => c.id === col.id ? { ...c, name } : c)));
+                  if (!activeWorkspaceId) return;
+                  const tempId = uid();
+                  const placeholder = { id: tempId, name: 'New Collection', isOpen: true, isFavorite: false, items: [] };
+                  setCollections(prev => [...prev, placeholder]);
+                  startEdit(tempId, 'New Collection', name => {
+                    CreateCollection({ workspace_id: activeWorkspaceId, name })
+                      .then(col => {
+                        if (col) {
+                          setCollections(prev => prev.map(c => c.id === tempId ? { ...col, isOpen: true, isFavorite: col.is_favorite ?? false, items: [] } : c));
+                        } else {
+                          setCollections(prev => prev.filter(c => c.id !== tempId));
+                        }
+                      })
+                      .catch(() => setCollections(prev => prev.filter(c => c.id !== tempId)));
+                  });
                 }} title="New Collection" data-testid="new-collection-btn"
                   style={{ background: '#FF6C37', border: 'none', borderRadius: 4, padding: '5px 8px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'background .15s' }}
                   onMouseEnter={e => { e.currentTarget.style.background = '#e55a28'; }}
@@ -497,6 +669,11 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
                   onMouseLeave={e => { e.currentTarget.style.color = '#aaa'; e.currentTarget.style.background = '#2d2d2d'; }}
                 ><Download size={14} /></button>
               </div>
+
+              {/* Loading indicator */}
+              {colLoading && (
+                <div style={{ padding: '12px 16px', textAlign: 'center', color: '#666', fontSize: 11 }}>Loading collections...</div>
+              )}
 
               {filtered.map(col => (
                 <div key={col.id}>
@@ -534,11 +711,17 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
                     ) : (
                       <span
                         onClick={() => toggleColOpen(col.id)}
-                        onDoubleClick={e => { e.stopPropagation(); startEdit(col.id, col.name, name => setCollections(prev => prev.map(c => c.id === col.id ? { ...c, name } : c))); }}
+                        onDoubleClick={e => {
+                          e.stopPropagation(); startEdit(col.id, col.name, name => {
+                            RenameCollection(col.id, name)
+                              .then(updated => { if (updated) setCollections(prev => prev.map(c => c.id === col.id ? { ...c, name: updated.name } : c)); })
+                              .catch(console.error);
+                          });
+                        }}
                         style={{ color: '#e0e0e0', fontSize: 12, fontWeight: 500, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}
                       >{col.name}</span>
                     )}
-                    <button onClick={e => { e.stopPropagation(); toggleFav(col.id); }} title={col.isFavorite ? 'Unfavourite' : 'Favourite'}
+                    <button onClick={e => { e.stopPropagation(); toggleFav(col); }} title={col.isFavorite ? 'Unfavourite' : 'Favourite'}
                       style={{ background: 'none', border: 'none', color: col.isFavorite ? '#fca130' : '#444', cursor: 'pointer', display: 'flex', padding: 2, flexShrink: 0, transition: 'color .15s' }}
                       onMouseEnter={e => { e.currentTarget.style.color = '#fca130'; }}
                       onMouseLeave={e => { e.currentTarget.style.color = col.isFavorite ? '#fca130' : '#444'; }}
@@ -602,7 +785,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
                 </div>
               ))}
 
-              {filtered.length === 0 && !searchQuery && (
+              {filtered.length === 0 && !searchQuery && !colLoading && (
                 <div style={{ padding: '32px 16px', textAlign: 'center' }}>
                   <FolderOpen size={32} style={{ color: '#444', margin: '0 auto 10px', display: 'block' }} />
                   <p style={{ color: '#666', fontSize: 12 }}>No collections yet</p>

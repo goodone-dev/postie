@@ -20,7 +20,15 @@ func NewWorkspaceUsecase(workspaceRepo workspace.WorkspaceRepository) workspace.
 	}
 }
 
-func (u *workspaceUsecase) Create(ctx context.Context, payload workspace.CreateWorkspaceRequest) (*workspace.Workspace, error) {
+func toWorkspaceResponse(w workspace.Workspace) workspace.WorkspaceResponse {
+	return workspace.WorkspaceResponse{
+		ID:   w.ID,
+		Name: w.Name,
+		Slug: w.Slug,
+	}
+}
+
+func (u *workspaceUsecase) Create(ctx context.Context, payload workspace.CreateWorkspaceRequest) (*workspace.WorkspaceResponse, error) {
 	slug := strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-"))
 
 	entity := workspace.Workspace{
@@ -28,47 +36,50 @@ func (u *workspaceUsecase) Create(ctx context.Context, payload workspace.CreateW
 		Slug: slug,
 	}
 
-	workspace, err := u.workspaceRepo.Insert(ctx, entity, nil)
+	ws, err := u.workspaceRepo.Insert(ctx, entity, nil)
 	if err != nil {
 		logger.Error(ctx, err, "❌ Failed to create workspace").Write()
 		return nil, err
 	}
 
-	return &workspace, nil
+	res := toWorkspaceResponse(ws)
+	return &res, nil
 }
 
-func (u *workspaceUsecase) Get(ctx context.Context, ID uuid.UUID) (*workspace.Workspace, error) {
-	workspace, err := u.workspaceRepo.FindById(ctx, ID)
+func (u *workspaceUsecase) Get(ctx context.Context, ID uuid.UUID) (*workspace.WorkspaceResponse, error) {
+	ws, err := u.workspaceRepo.FindById(ctx, ID)
 	if err != nil {
 		logger.Error(ctx, err, "❌ Failed to get workspace").Write()
 		return nil, err
-	} else if workspace == nil {
+	} else if ws == nil {
 		return nil, httperror.NewNotFoundError("workspace not found")
 	}
 
-	return workspace, nil
+	res := toWorkspaceResponse(*ws)
+	return &res, nil
 }
 
-func (u *workspaceUsecase) Update(ctx context.Context, ID uuid.UUID, payload workspace.CreateWorkspaceRequest) (*workspace.Workspace, error) {
+func (u *workspaceUsecase) Rename(ctx context.Context, ID uuid.UUID, name string) (*workspace.WorkspaceResponse, error) {
 	_, err := u.Get(ctx, ID)
 	if err != nil {
 		return nil, err
 	}
 
-	slug := strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-"))
+	slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
 
 	update := map[string]any{
-		"name": payload.Name,
+		"name": name,
 		"slug": slug,
 	}
 
-	workspace, err := u.workspaceRepo.UpdateById(ctx, ID, update, nil)
+	ws, err := u.workspaceRepo.UpdateById(ctx, ID, update, nil)
 	if err != nil {
-		logger.Error(ctx, err, "❌ Failed to update workspace").Write()
+		logger.Error(ctx, err, "❌ Failed to rename workspace").Write()
 		return nil, err
 	}
 
-	return &workspace, nil
+	res := toWorkspaceResponse(ws)
+	return &res, nil
 }
 
 func (u *workspaceUsecase) Delete(ctx context.Context, ID uuid.UUID) error {
@@ -86,7 +97,7 @@ func (u *workspaceUsecase) Delete(ctx context.Context, ID uuid.UUID) error {
 	return nil
 }
 
-func (u *workspaceUsecase) List(ctx context.Context) ([]workspace.Workspace, error) {
+func (u *workspaceUsecase) List(ctx context.Context) ([]workspace.WorkspaceResponse, error) {
 	workspaces, err := u.workspaceRepo.FindAll(ctx, map[string]any{})
 	if err != nil {
 		logger.Error(ctx, err, "❌ Failed to list workspaces").Write()
@@ -94,7 +105,11 @@ func (u *workspaceUsecase) List(ctx context.Context) ([]workspace.Workspace, err
 	}
 
 	if len(workspaces) > 0 {
-		return workspaces, nil
+		result := make([]workspace.WorkspaceResponse, len(workspaces))
+		for i, ws := range workspaces {
+			result[i] = toWorkspaceResponse(ws)
+		}
+		return result, nil
 	}
 
 	defaultWorkspace, err := u.Create(ctx, workspace.CreateWorkspaceRequest{
@@ -106,5 +121,5 @@ func (u *workspaceUsecase) List(ctx context.Context) ([]workspace.Workspace, err
 		return nil, err
 	}
 
-	return []workspace.Workspace{*defaultWorkspace}, nil
+	return []workspace.WorkspaceResponse{*defaultWorkspace}, nil
 }

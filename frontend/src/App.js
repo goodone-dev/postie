@@ -6,8 +6,8 @@ import ResponsePanel from './components/Postie/ResponsePanel';
 import EnvironmentEditor from './components/Postie/EnvironmentEditor';
 import { NotificationPanel, SettingsModal, UserModal } from './components/Postie/TopModals';
 import { DEFAULT_REQUEST, METHOD_COLORS, MOCK_ENVIRONMENTS } from './mock';
-import { CreateWorkspace, ListWorkspaces, UpdateWorkspace, DeleteWorkspace } from './wailsjs/go/main/App';
-import { Plus, X, Settings, Bell, Search, ChevronDown, Layers, Check, Globe } from 'lucide-react';
+import { CreateWorkspace, ListWorkspaces, RenameWorkspace, DeleteWorkspace } from './wailsjs/go/main/App';
+import { Plus, X, Settings, Bell, Search, ChevronDown, Layers, Check, Globe, Trash2 } from 'lucide-react';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -45,6 +45,7 @@ function App() {
   const [editingWorkspaceName, setEditingWorkspaceName] = useState('');
   const [renamingWorkspaceId, setRenamingWorkspaceId] = useState(null);
   const [renamingWorkspaceName, setRenamingWorkspaceName] = useState('');
+  const [confirmDelWorkspace, setConfirmDelWorkspace] = useState(null); // { ws }
 
   // Fetch initial workspaces
   useEffect(() => {
@@ -324,6 +325,44 @@ function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#1c1c1c', fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, sans-serif', overflow: 'hidden' }}>
+
+      {/* ── DELETE WORKSPACE CONFIRM MODAL ─────────────────────────────── */}
+      {confirmDelWorkspace && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setConfirmDelWorkspace(null); }}>
+          <div style={{ width: 340, background: '#1e1e1e', border: '1px solid #3d3d3d', borderRadius: 8, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.7)' }}>
+            <div style={{ color: '#e0e0e0', fontWeight: 600, fontSize: 14, marginBottom: 10 }}>Delete Workspace</div>
+            <div style={{ color: '#888', fontSize: 12, lineHeight: 1.6, marginBottom: 18 }}>
+              Delete "{confirmDelWorkspace.ws.name}"? All collections inside will be permanently lost.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirmDelWorkspace(null)}
+                style={{ background: 'none', border: '1px solid #3d3d3d', borderRadius: 4, padding: '6px 16px', color: '#ccc', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .15s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#666'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#3d3d3d'; }}
+              >Cancel</button>
+              <button onClick={() => {
+                const { ws } = confirmDelWorkspace;
+                setConfirmDelWorkspace(null);
+                DeleteWorkspace(ws.id)
+                  .then(() => {
+                    if (ws.id === activeWorkspaceId) {
+                      setActiveWorkspaceId(workspaces.find(w => w.id !== ws.id)?.id || '');
+                    }
+                    setWorkspaces(prev => prev.filter(w => w.id !== ws.id));
+                    setWorkspaceDropdownOpen(false);
+                  })
+                  .catch(console.error);
+              }}
+                style={{ background: '#f93e3e', border: 'none', borderRadius: 4, padding: '6px 16px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'background .15s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#d93030'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f93e3e'; }}
+              >Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── TOP BAR ──────────────────────────────────────────────────── */}
       <div style={{ height: '48px', backgroundColor: '#1a1a1a', borderBottom: '1px solid #2d2d2d', display: 'flex', alignItems: 'center', padding: '0 12px', gap: '6px', flexShrink: 0, zIndex: 100 }}>
         {/* Logo */}
@@ -374,9 +413,9 @@ function App() {
                       onChange={e => setRenamingWorkspaceName(e.target.value)}
                       onBlur={() => {
                         if (renamingWorkspaceName.trim()) {
-                          UpdateWorkspace(ws.id, { name: renamingWorkspaceName.trim() })
+                          RenameWorkspace(ws.id, renamingWorkspaceName.trim())
                             .then(updated => {
-                              if(updated) setWorkspaces(prev => prev.map(w => w.id === ws.id ? updated : w));
+                              if (updated) setWorkspaces(prev => prev.map(w => w.id === ws.id ? updated : w));
                             })
                             .catch(console.error);
                         }
@@ -385,9 +424,9 @@ function App() {
                       onKeyDown={e => {
                         if (e.key === 'Enter') {
                           if (renamingWorkspaceName.trim()) {
-                            UpdateWorkspace(ws.id, { name: renamingWorkspaceName.trim() })
+                            RenameWorkspace(ws.id, renamingWorkspaceName.trim())
                               .then(updated => {
-                                if(updated) setWorkspaces(prev => prev.map(w => w.id === ws.id ? updated : w));
+                                if (updated) setWorkspaces(prev => prev.map(w => w.id === ws.id ? updated : w));
                               })
                               .catch(console.error);
                           }
@@ -421,17 +460,14 @@ function App() {
                         </button>
                         {workspaces.length > 1 && (
                           <button title="Delete" onClick={e => {
-                             e.stopPropagation();
-                             DeleteWorkspace(ws.id).then(() => {
-                               if (ws.id === activeWorkspaceId) setActiveWorkspaceId(workspaces.find(w => w.id !== ws.id)?.id || '');
-                               setWorkspaces(prev => prev.filter(w => w.id !== ws.id));
-                             }).catch(console.error);
+                            e.stopPropagation();
+                            setConfirmDelWorkspace({ ws });
                           }}
                             style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 3, borderRadius: 3, display: 'flex', transition: 'color .1s' }}
                             onMouseEnter={e => { e.currentTarget.style.color = '#f93e3e'; }}
                             onMouseLeave={e => { e.currentTarget.style.color = '#555'; }}
                           >
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
+                            <Trash2 size={11} />
                           </button>
                         )}
                       </div>
@@ -559,6 +595,8 @@ function App() {
             environments={environments}
             setEnvironments={setEnvironments}
             activeTabId={activeTabId}
+            activeWorkspaceId={activeWorkspaceId}
+            workspaces={workspaces}
           />
         </div>
         {/* Sidebar resize handle */}

@@ -4,9 +4,12 @@ import (
 	"context"
 	"embed"
 
+	collectionRepoImpl "github.com/goodone-dev/postie/internal/application/collection/repository"
+	collectionUsecaseImpl "github.com/goodone-dev/postie/internal/application/collection/usecase"
 	workspaceRepoImpl "github.com/goodone-dev/postie/internal/application/workspace/repository"
 	workspaceUsecaseImpl "github.com/goodone-dev/postie/internal/application/workspace/usecase"
 	"github.com/goodone-dev/postie/internal/config"
+	"github.com/goodone-dev/postie/internal/domain/collection"
 	"github.com/goodone-dev/postie/internal/domain/workspace"
 	"github.com/goodone-dev/postie/internal/infrastructure/database/sqlite"
 	"github.com/goodone-dev/postie/internal/infrastructure/logger"
@@ -32,14 +35,24 @@ func main() {
 	// Initialize database
 	dbConn := sqlite.Open(ctx)
 
-	// Dependency Injection Layers
+	// Workspace Dependency Injection
 	workspaceBaseRepo := sqlite.NewBaseRepository[gorm.DB, uuid.UUID, workspace.Workspace](dbConn)
 	workspaceRepo := workspaceRepoImpl.NewWorkspaceRepository(workspaceBaseRepo)
 	workspaceUsecase := workspaceUsecaseImpl.NewWorkspaceUsecase(workspaceRepo)
 
+	// Collection Dependency Injection
+	collectionBaseRepo := sqlite.NewBaseRepository[gorm.DB, uuid.UUID, collection.Collection](dbConn)
+	collectionRepo := collectionRepoImpl.NewCollectionRepository(collectionBaseRepo)
+	folderBaseRepo := sqlite.NewBaseRepository[gorm.DB, uuid.UUID, collection.CollectionFolder](dbConn)
+	folderRepo := collectionRepoImpl.NewCollectionFolderRepository(folderBaseRepo)
+	requestBaseRepo := sqlite.NewBaseRepository[gorm.DB, uuid.UUID, collection.CollectionRequest](dbConn)
+	requestRepo := collectionRepoImpl.NewCollectionRequestRepository(requestBaseRepo)
+	collectionUsecase := collectionUsecaseImpl.NewCollectionUsecase(collectionRepo, folderRepo, requestRepo)
+
 	// Create an instance of the app structure
 	app := NewApp(App{
-		workspaceUsecase: workspaceUsecase,
+		workspaceUsecase:  workspaceUsecase,
+		collectionUsecase: collectionUsecase,
 	})
 
 	// Create application with options

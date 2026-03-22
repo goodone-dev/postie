@@ -3,14 +3,16 @@ package main
 import (
 	"context"
 
+	"github.com/goodone-dev/postie/internal/domain/collection"
 	"github.com/goodone-dev/postie/internal/domain/workspace"
 	"github.com/google/uuid"
 )
 
 // App struct
 type App struct {
-	ctx              context.Context
-	workspaceUsecase workspace.WorkspaceUsecase
+	ctx               context.Context
+	workspaceUsecase  workspace.WorkspaceUsecase
+	collectionUsecase collection.CollectionUsecase
 }
 
 // NewApp creates a new App application struct
@@ -24,11 +26,13 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-func (a *App) CreateWorkspace(payload workspace.CreateWorkspaceRequest) (*workspace.Workspace, error) {
+// ── Workspace ────────────────────────────────────────────────────────────────
+
+func (a *App) CreateWorkspace(payload workspace.CreateWorkspaceRequest) (*workspace.WorkspaceResponse, error) {
 	return a.workspaceUsecase.Create(a.ctx, payload)
 }
 
-func (a *App) GetWorkspace(id string) (*workspace.Workspace, error) {
+func (a *App) GetWorkspace(id string) (*workspace.WorkspaceResponse, error) {
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, err
@@ -36,12 +40,12 @@ func (a *App) GetWorkspace(id string) (*workspace.Workspace, error) {
 	return a.workspaceUsecase.Get(a.ctx, uid)
 }
 
-func (a *App) UpdateWorkspace(id string, payload workspace.CreateWorkspaceRequest) (*workspace.Workspace, error) {
+func (a *App) RenameWorkspace(id string, name string) (*workspace.WorkspaceResponse, error) {
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return nil, err
 	}
-	return a.workspaceUsecase.Update(a.ctx, uid, payload)
+	return a.workspaceUsecase.Rename(a.ctx, uid, name)
 }
 
 func (a *App) DeleteWorkspace(id string) error {
@@ -52,6 +56,60 @@ func (a *App) DeleteWorkspace(id string) error {
 	return a.workspaceUsecase.Delete(a.ctx, uid)
 }
 
-func (a *App) ListWorkspaces() ([]workspace.Workspace, error) {
+func (a *App) ListWorkspaces() ([]workspace.WorkspaceResponse, error) {
 	return a.workspaceUsecase.List(a.ctx)
+}
+
+// ── Collection ───────────────────────────────────────────────────────────────
+
+func (a *App) ListCollections(workspaceID string) ([]collection.CollectionResponse, error) {
+	uid, err := uuid.Parse(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.List(a.ctx, uid)
+}
+
+func (a *App) CreateCollection(payload collection.CreateCollectionRequest) (*collection.CollectionResponse, error) {
+	return a.collectionUsecase.Create(a.ctx, payload)
+}
+
+func (a *App) RenameCollection(id string, name string) (*collection.CollectionResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.Rename(a.ctx, uid, name)
+}
+
+func (a *App) UpdateCollectionFavorite(id string, isFavorite bool) (*collection.CollectionResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.UpdateFavorite(a.ctx, uid, isFavorite)
+}
+
+func (a *App) DeleteCollection(id string) error {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	return a.collectionUsecase.Delete(a.ctx, uid)
+}
+
+func (a *App) DuplicateCollection(id string) (*collection.CollectionResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.Duplicate(a.ctx, uid)
+}
+
+func (a *App) MoveCollection(id string, payload collection.MoveCollectionRequest) (*collection.CollectionResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.Move(a.ctx, uid, payload)
 }
