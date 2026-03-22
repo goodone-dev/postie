@@ -5,8 +5,8 @@ import RequestPanel from './components/Postie/RequestPanel';
 import ResponsePanel from './components/Postie/ResponsePanel';
 import EnvironmentEditor from './components/Postie/EnvironmentEditor';
 import { NotificationPanel, SettingsModal, UserModal } from './components/Postie/TopModals';
-import { DEFAULT_REQUEST, METHOD_COLORS, MOCK_ENVIRONMENTS } from './mock';
-import { CreateWorkspace, ListWorkspaces, RenameWorkspace, DeleteWorkspace } from './wailsjs/go/main/App';
+import { DEFAULT_REQUEST, METHOD_COLORS } from './mock';
+import { CreateWorkspace, ListWorkspaces, RenameWorkspace, DeleteWorkspace, ListEnvironments, UpdateEnvironment } from './wailsjs/go/main/App';
 import { Plus, X, Settings, Bell, Search, ChevronDown, Layers, Check, Globe, Trash2 } from 'lucide-react';
 import './App.css';
 
@@ -34,7 +34,7 @@ function App() {
   const [activeTabId, setActiveTabId] = useState(null);
   const [selectedEnvId, setSelectedEnvId] = useState('');
   const [envDropdownOpen, setEnvDropdownOpen] = useState(false);
-  const [environments, setEnvironments] = useState(MOCK_ENVIRONMENTS);
+  const [environments, setEnvironments] = useState([]);
   // Workspace state
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState('');
@@ -56,8 +56,17 @@ function App() {
           setActiveWorkspaceId(data[0].id);
         }
       })
-      .catch((err) => console.error("Error fetching workspaces:", err));
   }, []);
+
+  // Fetch environments when active workspace changes
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    ListEnvironments(activeWorkspaceId)
+      .then((data) => {
+        setEnvironments(data || []);
+      })
+      .catch((err) => console.error("Error fetching environments:", err));
+  }, [activeWorkspaceId]);
   // Modal states
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -292,7 +301,7 @@ function App() {
   };
 
   const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId);
-  const selectedEnv = MOCK_ENVIRONMENTS.find(e => e.id === selectedEnvId);
+  const selectedEnv = environments.find(e => e.id === selectedEnvId);
 
   const createWorkspace = async () => {
     if (!newWorkspaceName.trim()) return;
@@ -530,7 +539,7 @@ function App() {
                 onMouseEnter={e => { e.currentTarget.style.background = '#333'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >No Environment</div>
-              {MOCK_ENVIRONMENTS.map(env => (
+              {environments.map(env => (
                 <div key={env.id} onClick={() => { setSelectedEnvId(env.id); setEnvDropdownOpen(false); }}
                   style={{ padding: '8px 14px', cursor: 'pointer', color: selectedEnvId === env.id ? '#FF6C37' : '#ccc', fontSize: '12px', fontFamily: 'inherit' }}
                   onMouseEnter={e => { e.currentTarget.style.background = '#333'; }}
@@ -667,7 +676,11 @@ function App() {
             activeTab.type === 'environment' ? (
               <EnvironmentEditor
                 environment={environments.find(e => e.id === activeTab.envId)}
-                onUpdate={(updatedEnv) => setEnvironments(prev => prev.map(e => e.id === updatedEnv.id ? updatedEnv : e))}
+                onUpdate={(updatedEnv) => {
+                  setEnvironments(prev => prev.map(e => e.id === updatedEnv.id ? updatedEnv : e));
+                  UpdateEnvironment(updatedEnv.id, { name: updatedEnv.name, variables: updatedEnv.variables || [] })
+                    .catch(console.error);
+                }}
               />
             ) : (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

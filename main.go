@@ -10,9 +10,13 @@ import (
 	workspaceUsecaseImpl "github.com/goodone-dev/postie/internal/application/workspace/usecase"
 	"github.com/goodone-dev/postie/internal/config"
 	"github.com/goodone-dev/postie/internal/domain/collection"
+	"github.com/goodone-dev/postie/internal/domain/environment"
 	"github.com/goodone-dev/postie/internal/domain/workspace"
 	"github.com/goodone-dev/postie/internal/infrastructure/database/sqlite"
 	"github.com/goodone-dev/postie/internal/infrastructure/logger"
+
+	environmentRepoImpl "github.com/goodone-dev/postie/internal/application/environment/repository"
+	environmentUsecaseImpl "github.com/goodone-dev/postie/internal/application/environment/usecase"
 	"github.com/google/uuid"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -49,10 +53,16 @@ func main() {
 	requestRepo := collectionRepoImpl.NewCollectionRequestRepository(requestBaseRepo)
 	collectionUsecase := collectionUsecaseImpl.NewCollectionUsecase(collectionRepo, folderRepo, requestRepo)
 
+	// Environment Dependency Injection
+	environmentBaseRepo := sqlite.NewBaseRepository[gorm.DB, uuid.UUID, environment.Environment](dbConn)
+	environmentRepo := environmentRepoImpl.NewEnvironmentRepository(environmentBaseRepo)
+	environmentUsecase := environmentUsecaseImpl.NewEnvironmentUsecase(environmentRepo)
+
 	// Create an instance of the app structure
 	app := NewApp(App{
-		workspaceUsecase:  workspaceUsecase,
-		collectionUsecase: collectionUsecase,
+		workspaceUsecase:   workspaceUsecase,
+		collectionUsecase:  collectionUsecase,
+		environmentUsecase: environmentUsecase,
 	})
 
 	// Create application with options

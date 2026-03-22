@@ -46,7 +46,7 @@ func (u *workspaceUsecase) Create(ctx context.Context, payload workspace.CreateW
 	return &res, nil
 }
 
-func (u *workspaceUsecase) Get(ctx context.Context, ID uuid.UUID) (*workspace.WorkspaceResponse, error) {
+func (u *workspaceUsecase) getEntity(ctx context.Context, ID uuid.UUID) (*workspace.Workspace, error) {
 	ws, err := u.workspaceRepo.FindById(ctx, ID)
 	if err != nil {
 		logger.Error(ctx, err, "❌ Failed to get workspace").Write()
@@ -54,13 +54,21 @@ func (u *workspaceUsecase) Get(ctx context.Context, ID uuid.UUID) (*workspace.Wo
 	} else if ws == nil {
 		return nil, httperror.NewNotFoundError("workspace not found")
 	}
+	return ws, nil
+}
+
+func (u *workspaceUsecase) Get(ctx context.Context, ID uuid.UUID) (*workspace.WorkspaceResponse, error) {
+	ws, err := u.getEntity(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
 
 	res := toWorkspaceResponse(*ws)
 	return &res, nil
 }
 
 func (u *workspaceUsecase) Rename(ctx context.Context, ID uuid.UUID, name string) (*workspace.WorkspaceResponse, error) {
-	_, err := u.Get(ctx, ID)
+	_, err := u.getEntity(ctx, ID)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +91,7 @@ func (u *workspaceUsecase) Rename(ctx context.Context, ID uuid.UUID, name string
 }
 
 func (u *workspaceUsecase) Delete(ctx context.Context, ID uuid.UUID) error {
-	_, err := u.Get(ctx, ID)
+	_, err := u.getEntity(ctx, ID)
 	if err != nil {
 		return err
 	}

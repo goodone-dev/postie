@@ -4,15 +4,17 @@ import (
 	"context"
 
 	"github.com/goodone-dev/postie/internal/domain/collection"
+	"github.com/goodone-dev/postie/internal/domain/environment"
 	"github.com/goodone-dev/postie/internal/domain/workspace"
 	"github.com/google/uuid"
 )
 
 // App struct
 type App struct {
-	ctx               context.Context
-	workspaceUsecase  workspace.WorkspaceUsecase
-	collectionUsecase collection.CollectionUsecase
+	ctx                context.Context
+	workspaceUsecase   workspace.WorkspaceUsecase
+	collectionUsecase  collection.CollectionUsecase
+	environmentUsecase environment.EnvironmentUsecase
 }
 
 // NewApp creates a new App application struct
@@ -112,4 +114,72 @@ func (a *App) MoveCollection(id string, payload collection.MoveCollectionRequest
 		return nil, err
 	}
 	return a.collectionUsecase.Move(a.ctx, uid, payload)
+}
+
+// ── Folder ───────────────────────────────────────────────────────────────
+
+func (a *App) CreateFolder(payload collection.CreateFolderRequest) (*collection.FolderResponse, error) {
+	return a.collectionUsecase.CreateFolder(a.ctx, payload)
+}
+
+func (a *App) RenameFolder(id string, payload collection.RenameFolderRequest) (*collection.FolderResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.RenameFolder(a.ctx, uid, payload)
+}
+
+func (a *App) DeleteFolder(id string) error {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	return a.collectionUsecase.DeleteFolder(a.ctx, uid)
+}
+
+func (a *App) DuplicateFolder(id string) (*collection.FolderResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.DuplicateFolder(a.ctx, uid)
+}
+
+// ── Environment ───────────────────────────────────────────────────────────────
+
+func (a *App) ListEnvironments(workspaceID string) ([]environment.EnvironmentResponse, error) {
+	uid, err := uuid.Parse(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	return a.environmentUsecase.List(a.ctx, uid)
+}
+
+func (a *App) CreateEnvironment(payload environment.CreateEnvironmentRequest) (*environment.EnvironmentResponse, error) {
+	return a.environmentUsecase.Create(a.ctx, payload)
+}
+
+func (a *App) UpdateEnvironment(id string, payload environment.UpdateEnvironmentRequest) (*environment.EnvironmentResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.environmentUsecase.Update(a.ctx, uid, payload)
+}
+
+func (a *App) DeleteEnvironment(id string) error {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	return a.environmentUsecase.Delete(a.ctx, uid)
+}
+
+func (a *App) DuplicateEnvironment(id string) (*environment.EnvironmentResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.environmentUsecase.Duplicate(a.ctx, uid)
 }

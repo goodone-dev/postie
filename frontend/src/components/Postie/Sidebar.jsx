@@ -8,8 +8,9 @@ import { METHOD_COLORS } from '../../mock';
 import {
   ListCollections, CreateCollection, RenameCollection, UpdateCollectionFavorite,
   DeleteCollection, DuplicateCollection, MoveCollection,
+  CreateEnvironment, UpdateEnvironment, DeleteEnvironment, DuplicateEnvironment,
+  CreateFolder, RenameFolder, DeleteFolder, DuplicateFolder
 } from '../../wailsjs/go/main/App';
-
 
 const uid = () => `id-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
@@ -122,7 +123,7 @@ const InlineInput = ({ value, onChange, onCommit, onCancel, extraStyle = {} }) =
       background: 'transparent', border: 'none', outline: 'none',
       boxShadow: '0 1px 0 #FF6C37',
       color: '#e0e0e0', fontSize: 12, fontWeight: 500,
-      flex: 1, minWidth: 0, fontFamily: 'inherit', padding: '0 2px',
+      flex: 1, minWidth: 0, fontFamily: 'inherit', padding: 0, margin: 0,
       lineHeight: 'inherit', display: 'block',
       ...extraStyle,
     }}
@@ -130,7 +131,7 @@ const InlineInput = ({ value, onChange, onCommit, onCancel, extraStyle = {} }) =
 );
 
 /* ─── ENVIRONMENT PANEL ───────────────────────────────────────── */
-const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabId }) => {
+const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabId, activeWorkspaceId }) => {
   const [search, setSearch] = useState('');
   const [ctx, setCtx] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
@@ -140,10 +141,17 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
   const filtered = environments.filter(e => e.name.toLowerCase().includes(search.toLowerCase()));
 
   const addEnv = () => {
-    const env = { id: uid(), name: `New Environment ${environments.length + 1}`, variables: [{ id: uid(), key: '', value: '', enabled: true }] };
-    setEnvironments(prev => [...prev, env]);
-    onOpenEnv(env);
-    setTimeout(() => setInlineEdit({ id: env.id, value: env.name }), 50);
+    if (!activeWorkspaceId) return;
+    const name = `New Environment ${environments.length + 1}`;
+    CreateEnvironment({ workspace_id: activeWorkspaceId, name: name, variables: [{ id: uid(), key: '', value: '', enabled: true }] })
+      .then(env => {
+        if (env) {
+          setEnvironments(prev => [...prev, env]);
+          onOpenEnv(env);
+          setTimeout(() => setInlineEdit({ id: env.id, value: env.name }), 50);
+        }
+      })
+      .catch(console.error);
   };
 
   const handleImport = (e) => {
@@ -152,8 +160,13 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
     reader.onload = evt => {
       try {
         const data = JSON.parse(evt.target.result);
-        const env = { id: uid(), name: data.name || file.name.replace('.json', ''), variables: (data.values || data.variables || []).map(v => ({ id: uid(), key: v.key || v.name || '', value: v.value || '', enabled: v.enabled !== false })) };
-        setEnvironments(prev => [...prev, env]);
+        const name = data.name || file.name.replace('.json', '');
+        const variables = (data.values || data.variables || []).map(v => ({ id: uid(), key: v.key || v.name || '', value: v.value || '', enabled: v.enabled !== false }));
+        CreateEnvironment({ workspace_id: activeWorkspaceId, name, variables })
+          .then(env => {
+            if (env) setEnvironments(prev => [...prev, env]);
+          })
+          .catch(console.error);
       } catch { alert('Invalid environment file.'); }
     };
     reader.readAsText(file);
@@ -161,7 +174,13 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
   };
 
   const commitEdit = (env) => {
-    if (inlineEdit?.value?.trim()) setEnvironments(prev => prev.map(e => e.id === env.id ? { ...e, name: inlineEdit.value.trim() } : e));
+    if (inlineEdit?.value?.trim() && inlineEdit.value.trim() !== env.name) {
+      UpdateEnvironment(env.id, { name: inlineEdit.value.trim(), variables: env.variables || [] })
+        .then(updated => {
+          if (updated) setEnvironments(prev => prev.map(e => e.id === env.id ? updated : e));
+        })
+        .catch(console.error);
+    }
     setInlineEdit(null);
   };
 
@@ -199,9 +218,22 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
                 setCtx({
                   x: e.clientX, y: e.clientY, items: [
                     { icon: <Pencil size={12} />, label: 'Rename', action: () => setInlineEdit({ id: env.id, value: env.name }) },
-                    { icon: <Copy size={12} />, label: 'Duplicate', action: () => setEnvironments(prev => [...prev, { ...env, id: uid(), name: `${env.name} (copy)`, variables: env.variables.map(v => ({ ...v, id: uid() })) }]) },
-                    'sep',
-                    { icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({ title: 'Delete Environment', message: `Delete "${env.name}"? This cannot be undone.`, onConfirm: () => setEnvironments(prev => prev.filter(e => e.id !== env.id)) }) },
+                    {
+                      icon: <Copy size={12} />, label: 'Duplicate', action: () => {
+                        DuplicateEnvironment(env.id).then(dup => {
+                          if (dup) setEnvironments(prev => { const idx = prev.findIndex(e => e.id === env.id); const res = [...prev]; res.splice(idx + 1, 0, dup); return res; });
+                        }).catch(console.error);
+                      }
+                    },
+                    {
+                      icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({
+                        title: 'Delete Environment', message: `Delete "${env.name}"? This cannot be undone.`, onConfirm: () => {
+                          DeleteEnvironment(env.id).then(() => {
+                            setEnvironments(prev => prev.filter(e => e.id !== env.id));
+                          }).catch(console.error);
+                        }
+                      })
+                    },
                   ]
                 });
               }}
@@ -226,9 +258,22 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
                 e.stopPropagation(); setCtx({
                   x: e.clientX, y: e.clientY, items: [
                     { icon: <Pencil size={12} />, label: 'Rename', action: () => setInlineEdit({ id: env.id, value: env.name }) },
-                    { icon: <Copy size={12} />, label: 'Duplicate', action: () => setEnvironments(prev => [...prev, { ...env, id: uid(), name: `${env.name} (copy)`, variables: env.variables.map(v => ({ ...v, id: uid() })) }]) },
-                    'sep',
-                    { icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({ title: 'Delete Environment', message: `Delete "${env.name}"? This cannot be undone.`, onConfirm: () => setEnvironments(prev => prev.filter(e => e.id !== env.id)) }) },
+                    {
+                      icon: <Copy size={12} />, label: 'Duplicate', action: () => {
+                        DuplicateEnvironment(env.id).then(dup => {
+                          if (dup) setEnvironments(prev => { const idx = prev.findIndex(e => e.id === env.id); const res = [...prev]; res.splice(idx + 1, 0, dup); return res; });
+                        }).catch(console.error);
+                      }
+                    },
+                    {
+                      icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({
+                        title: 'Delete Environment', message: `Delete "${env.name}"? This cannot be undone.`, onConfirm: () => {
+                          DeleteEnvironment(env.id).then(() => {
+                            setEnvironments(prev => prev.filter(e => e.id !== env.id));
+                          }).catch(console.error);
+                        }
+                      })
+                    },
                   ]
                 });
               }}
@@ -240,8 +285,8 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
           );
         })}
         {filtered.length === 0 && (
-          <div style={{ padding: '24px 16px', textAlign: 'center' }}>
-            <Globe size={28} style={{ color: '#444', margin: '0 auto 10px', display: 'block' }} />
+          <div style={{ padding: '32px 16px', textAlign: 'center' }}>
+            <Globe size={32} style={{ color: '#444', margin: '0 auto 10px', display: 'block' }} />
             <p style={{ color: '#666', fontSize: 12 }}>No environments yet</p>
           </div>
         )}
@@ -286,7 +331,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
             ...col,
             isOpen: false,
             isFavorite: col.is_favorite ?? false,
-            items: [],
+            items: col.items || [],
           })));
         }
       })
@@ -312,11 +357,50 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
   const commitEdit = () => { if (inlineEdit?.value?.trim()) inlineEdit.onCommit(inlineEdit.value.trim()); setInlineEdit(null); };
 
   /* ── deep mutate helpers ─── */
+  // Recursively map items inside any depth
   const mapItems = (colId, fn) => setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: fn(c.items) }));
-  const mapDeepItems = (colId, folId, fn) => setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: c.items.map(it => it.id !== folId ? it : { ...it, items: fn(it.items) }) }));
+
+  const mapDeepItems = (colId, folId, fn) => {
+    const recurse = (items) => items.map(it => {
+      if (it.id === folId) return { ...it, items: fn(it.items) };
+      if (it.type === 'folder' && it.items) return { ...it, items: recurse(it.items) };
+      return it;
+    });
+    setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: recurse(c.items) }));
+  };
+
+  const updateItemById = (colId, targetId, updater) => {
+    const recurse = (items) => items.map(it => {
+      if (it.id === targetId) return updater(it);
+      if (it.items) return { ...it, items: recurse(it.items) };
+      return it;
+    });
+    setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: recurse(c.items) }));
+  };
+
+  const deleteItemById = (colId, targetId) => {
+    const recurse = (items) => {
+      const filtered = items.filter(it => it.id !== targetId);
+      return filtered.map(it => it.items ? { ...it, items: recurse(it.items) } : it);
+    };
+    setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: recurse(c.items) }));
+  };
+
+  const insertAfterById = (colId, targetId, newItem) => {
+    const recurse = (items) => {
+      const idx = items.findIndex(it => it.id === targetId);
+      if (idx !== -1) {
+        const arr = [...items];
+        arr.splice(idx + 1, 0, newItem);
+        return arr;
+      }
+      return items.map(it => it.items ? { ...it, items: recurse(it.items) } : it);
+    };
+    setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: recurse(c.items) }));
+  };
 
   const toggleColOpen = (colId) => setCollections(prev => prev.map(c => c.id === colId ? { ...c, isOpen: !c.isOpen } : c));
-  const toggleFolOpen = (colId, folId) => setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: c.items.map(it => it.id === folId ? { ...it, isOpen: !it.isOpen } : it) }));
+  const toggleFolOpen = (colId, folId) => updateItemById(colId, folId, fol => ({ ...fol, isOpen: !fol.isOpen }));
   const toggleFav = (col) => {
     const newVal = !col.isFavorite;
     setCollections(prev => prev.map(c => c.id === col.id ? { ...c, isFavorite: newVal } : c));
@@ -412,7 +496,13 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
       x: e.clientX, y: e.clientY, items: [
         {
           icon: <FolderPlus size={12} />, label: 'Add Folder',
-          action: () => setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'folder', id: uid(), name: 'New Folder', isOpen: true, items: [] }] }))
+          action: () => {
+            CreateFolder({ collection_id: col.id, parent_id: null, name: 'New Folder' })
+              .then(f => {
+                if (f) setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'folder', id: f.id, name: f.name, isOpen: true, items: [] }] }));
+              })
+              .catch(console.error);
+          }
         },
         {
           icon: <Plus size={12} />, label: 'Add Request',
@@ -474,10 +564,43 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     setCtx({
       x: e.clientX, y: e.clientY, items: [
         { icon: <Plus size={12} />, label: 'Add Request', action: () => mapDeepItems(col.id, fol.id, items => [...items, { type: 'request', id: uid(), name: 'New Request', method: 'GET', url: '', headers: [], params: [], pathVariables: [], body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] }, auth: { type: 'none' }, examples: [] }]) },
-        { icon: <Pencil size={12} />, label: 'Rename', action: () => startEdit(fol.id, fol.name, name => mapItems(col.id, items => items.map(it => it.id === fol.id ? { ...it, name } : it))) },
-        { icon: <Copy size={12} />, label: 'Duplicate', action: () => mapItems(col.id, items => { const idx = items.findIndex(it => it.id === fol.id); const arr = [...items]; arr.splice(idx + 1, 0, cloneItem(fol)); return arr; }) },
+        {
+          icon: <FolderPlus size={12} />, label: 'Add Folder', action: () => {
+            CreateFolder({ collection_id: col.id, parent_id: fol.id, name: 'New Folder' })
+              .then(f => {
+                if (f) mapDeepItems(col.id, fol.id, items => [...items, { type: 'folder', id: f.id, name: f.name, isOpen: true, items: [] }]);
+              })
+              .catch(console.error);
+          }
+        },
         'sep',
-        { icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({ title: 'Delete Folder', message: `Delete "${fol.name}" and its ${fol.items.length} request(s)?`, onConfirm: () => mapItems(col.id, items => items.filter(it => it.id !== fol.id)) }) }
+        {
+          icon: <Pencil size={12} />, label: 'Rename', action: () => startEdit(fol.id, fol.name, name => {
+            RenameFolder(fol.id, { name })
+              .then(updated => {
+                if (updated) updateItemById(col.id, fol.id, it => ({ ...it, name: updated.name }));
+              })
+              .catch(console.error);
+          })
+        },
+        {
+          icon: <Copy size={12} />, label: 'Duplicate', action: () => {
+            DuplicateFolder(fol.id)
+              .then(dup => {
+                if (dup) insertAfterById(col.id, fol.id, cloneItem({ ...fol, id: dup.id, name: dup.name }));
+              })
+              .catch(console.error);
+          }
+        },
+        {
+          icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({
+            title: 'Delete Folder', message: `Delete "${fol.name}" and its ${fol.items?.length || 0} item(s)?`, onConfirm: () => {
+              DeleteFolder(fol.id)
+                .then(() => deleteItemById(col.id, fol.id))
+                .catch(console.error);
+            }
+          })
+        }
       ]
     });
   };
@@ -566,7 +689,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
           >
             <span style={{ fontSize: 10, fontWeight: 600, color: ex.status >= 200 && ex.status < 300 ? '#49cc90' : '#f93e3e', minWidth: 34 }}>{ex.status || '—'}</span>
             {inlineEdit?.id === ex.id ? (
-              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} />
+              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} extraStyle={{ fontSize: 11 }} />
             ) : (
               <span
                 onDoubleClick={e => { e.stopPropagation(); startEdit(ex.id, ex.name, name => { const fn = items => items.map(it => it.id === req.id ? { ...it, examples: it.examples.map(x => x.id === ex.id ? { ...x, name } : x) } : it); folId ? mapDeepItems(col.id, folId, fn) : mapItems(col.id, fn); }); }}
@@ -581,6 +704,55 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
         ))}
       </React.Fragment>
     );
+  };
+
+  const renderNode = (col, item, folId = null, depth = 0) => {
+    if (item.type === 'folder') {
+      const isDragInside = dragOver?.id === item.id && dragOver?.type === 'inside';
+      const isFolDragging = drag?.id === item.id;
+      const isFolDragTarget = dragOver?.id === item.id && dragOver?.type === 'before';
+      const isEditing = inlineEdit?.id === item.id;
+      return (
+        <div key={item.id}
+          draggable={!isEditing}
+          onDragStart={e => onDragStart(e, { id: item.id, type: 'folder', colId: col.id, folId })}
+          onDragEnd={onDragEnd}
+        >
+          <div
+            onContextMenu={e => { e.preventDefault(); folMenu(col, item, e); }}
+            onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOver({ id: item.id, type: 'inside', colId: col.id, folId }); }}
+            onDrop={e => onDrop(e, { id: item.id, type: 'inside', colId: col.id, folId })}
+            style={{ display: 'flex', alignItems: 'center', padding: `6px 8px 6px ${depth * 12 + 20}px`, cursor: 'pointer', borderBottom: '1px solid #2d2d2d', gap: 5, transition: 'background .1s', background: isDragInside ? 'rgba(255,108,55,0.12)' : 'transparent', borderTop: isFolDragTarget ? '2px solid #FF6C37' : undefined, outline: isDragInside ? '1px solid rgba(255,108,55,0.4)' : undefined, opacity: isFolDragging ? 0.35 : 1 }}
+            onMouseEnter={e => { if (!isDragInside) e.currentTarget.style.background = '#2e2e2e'; }}
+            onMouseLeave={e => { if (!isDragInside) e.currentTarget.style.background = 'transparent'; }}
+          >
+            <span onClick={() => toggleFolOpen(col.id, item.id)} style={{ color: '#777', display: 'flex', flexShrink: 0 }}>
+              {item.isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </span>
+            <span onClick={() => toggleFolOpen(col.id, item.id)} style={{ color: '#e8a87c', display: 'flex', flexShrink: 0 }}>
+              {item.isOpen ? <FolderOpen size={12} /> : <Folder size={12} />}
+            </span>
+            {isEditing ? (
+              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} extraStyle={{ fontSize: 11 }} />
+            ) : (
+              <span
+                onClick={() => toggleFolOpen(col.id, item.id)}
+                onDoubleClick={e => { e.stopPropagation(); startEdit(item.id, item.name, name => mapItems(col.id, items => items.map(it => it.id === item.id ? { ...it, name } : it))); }}
+                style={{ color: '#ddd', fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+              >{item.name}</span>
+            )}
+            <span style={{ color: '#555', fontSize: 10, flexShrink: 0 }}>{item.items?.length || 0}</span>
+            <button onClick={e => { e.stopPropagation(); folMenu(col, item, e); }}
+              style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', display: 'flex', padding: 2, flexShrink: 0, transition: 'color .1s' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#aaa'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#555'; }}
+            ><MoreHorizontal size={11} /></button>
+          </div>
+          {item.isOpen && item.items?.map(child => renderNode(col, child, item.id, depth + 1))}
+        </div>
+      );
+    }
+    return renderRequest(col, item, folId, depth);
   };
 
   const sortedCollections = [...collections].sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0));
@@ -734,54 +906,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
                   </div>
 
                   {/* Collection items */}
-                  {col.isOpen && col.items.map(item => {
-                    if (item.type === 'folder') {
-                      const isDragInside = dragOver?.id === item.id && dragOver?.type === 'inside';
-                      const isFolDragging = drag?.id === item.id;
-                      const isFolDragTarget = dragOver?.id === item.id && dragOver?.type === 'before';
-                      const isEditing = inlineEdit?.id === item.id;
-                      return (
-                        <div key={item.id}
-                          draggable={!isEditing}
-                          onDragStart={e => onDragStart(e, { id: item.id, type: 'folder', colId: col.id, folId: null })}
-                          onDragEnd={onDragEnd}
-                        >
-                          <div
-                            onContextMenu={e => { e.preventDefault(); folMenu(col, item, e); }}
-                            onDragOver={e => { e.preventDefault(); e.stopPropagation(); setDragOver({ id: item.id, type: 'inside', colId: col.id, folId: null }); }}
-                            onDrop={e => onDrop(e, { id: item.id, type: 'inside', colId: col.id, folId: null })}
-                            style={{ display: 'flex', alignItems: 'center', padding: '6px 8px 6px 20px', cursor: 'pointer', borderBottom: '1px solid #2d2d2d', gap: 5, transition: 'background .1s', background: isDragInside ? 'rgba(255,108,55,0.12)' : 'transparent', borderTop: isFolDragTarget ? '2px solid #FF6C37' : undefined, outline: isDragInside ? '1px solid rgba(255,108,55,0.4)' : undefined, opacity: isFolDragging ? 0.35 : 1 }}
-                            onMouseEnter={e => { if (!isDragInside) e.currentTarget.style.background = '#2e2e2e'; }}
-                            onMouseLeave={e => { if (!isDragInside) e.currentTarget.style.background = 'transparent'; }}
-                          >
-                            <span onClick={() => toggleFolOpen(col.id, item.id)} style={{ color: '#777', display: 'flex', flexShrink: 0 }}>
-                              {item.isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                            </span>
-                            <span onClick={() => toggleFolOpen(col.id, item.id)} style={{ color: '#e8a87c', display: 'flex', flexShrink: 0 }}>
-                              {item.isOpen ? <FolderOpen size={12} /> : <Folder size={12} />}
-                            </span>
-                            {isEditing ? (
-                              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} />
-                            ) : (
-                              <span
-                                onClick={() => toggleFolOpen(col.id, item.id)}
-                                onDoubleClick={e => { e.stopPropagation(); startEdit(item.id, item.name, name => mapItems(col.id, items => items.map(it => it.id === item.id ? { ...it, name } : it))); }}
-                                style={{ color: '#ddd', fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
-                              >{item.name}</span>
-                            )}
-                            <span style={{ color: '#555', fontSize: 10, flexShrink: 0 }}>{item.items.length}</span>
-                            <button onClick={e => { e.stopPropagation(); folMenu(col, item, e); }}
-                              style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', display: 'flex', padding: 2, flexShrink: 0, transition: 'color .1s' }}
-                              onMouseEnter={e => { e.currentTarget.style.color = '#aaa'; }}
-                              onMouseLeave={e => { e.currentTarget.style.color = '#555'; }}
-                            ><MoreHorizontal size={11} /></button>
-                          </div>
-                          {item.isOpen && item.items.map(req => renderRequest(col, req, item.id, 1))}
-                        </div>
-                      );
-                    }
-                    return renderRequest(col, item, null, 0);
-                  })}
+                  {col.isOpen && col.items.map(item => renderNode(col, item, null, 0))}
                 </div>
               ))}
 
@@ -797,7 +922,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
 
           {/* ── ENVIRONMENTS ── */}
           {activeTab === 'environments' && (
-            <EnvironmentPanel environments={environments} setEnvironments={setEnvironments} onOpenEnv={onOpenEnv} activeTabId={activeTabId} />
+            <EnvironmentPanel environments={environments} setEnvironments={setEnvironments} onOpenEnv={onOpenEnv} activeTabId={activeTabId} activeWorkspaceId={activeWorkspaceId} />
           )}
 
           {/* ── HISTORY ── */}

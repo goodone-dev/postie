@@ -6,12 +6,28 @@ export function CreateCollection(arg1) {
   return window['go']['main']['App']['CreateCollection'](arg1);
 }
 
+export function CreateEnvironment(arg1) {
+  return window['go']['main']['App']['CreateEnvironment'](arg1);
+}
+
+export function CreateFolder(arg1) {
+  return window['go']['main']['App']['CreateFolder'](arg1);
+}
+
 export function CreateWorkspace(arg1) {
   return window['go']['main']['App']['CreateWorkspace'](arg1);
 }
 
 export function DeleteCollection(arg1) {
   return window['go']['main']['App']['DeleteCollection'](arg1);
+}
+
+export function DeleteEnvironment(arg1) {
+  return window['go']['main']['App']['DeleteEnvironment'](arg1);
+}
+
+export function DeleteFolder(arg1) {
+  return window['go']['main']['App']['DeleteFolder'](arg1);
 }
 
 export function DeleteWorkspace(arg1) {
@@ -22,12 +38,24 @@ export function DuplicateCollection(arg1) {
   return window['go']['main']['App']['DuplicateCollection'](arg1);
 }
 
+export function DuplicateEnvironment(arg1) {
+  return window['go']['main']['App']['DuplicateEnvironment'](arg1);
+}
+
+export function DuplicateFolder(arg1) {
+  return window['go']['main']['App']['DuplicateFolder'](arg1);
+}
+
 export function GetWorkspace(arg1) {
   return window['go']['main']['App']['GetWorkspace'](arg1);
 }
 
 export function ListCollections(arg1) {
   return window['go']['main']['App']['ListCollections'](arg1);
+}
+
+export function ListEnvironments(arg1) {
+  return window['go']['main']['App']['ListEnvironments'](arg1);
 }
 
 export function ListWorkspaces() {
@@ -42,10 +70,18 @@ export function RenameCollection(arg1, arg2) {
   return window['go']['main']['App']['RenameCollection'](arg1, arg2);
 }
 
+export function RenameFolder(arg1, arg2) {
+  return window['go']['main']['App']['RenameFolder'](arg1, arg2);
+}
+
 export function RenameWorkspace(arg1, arg2) {
   return window['go']['main']['App']['RenameWorkspace'](arg1, arg2);
 }
 
 export function UpdateCollectionFavorite(arg1, arg2) {
   return window['go']['main']['App']['UpdateCollectionFavorite'](arg1, arg2);
+}
+
+export function UpdateEnvironment(arg1, arg2) {
+  return window['go']['main']['App']['UpdateEnvironment'](arg1, arg2);
 }

@@ -30,7 +30,62 @@ func toCollectionResponse(c collection.Collection) collection.CollectionResponse
 		Name:       c.Name,
 		Slug:       c.Slug,
 		IsFavorite: c.IsFavorite,
+		IsOpen:     false,
+		Items:      make([]map[string]any, 0),
 	}
+}
+
+func (u *collectionUsecase) buildTree(ctx context.Context, colID uuid.UUID) []map[string]any {
+	folders, _ := u.folderRepo.FindAll(ctx, map[string]any{"collection_id": colID})
+	requests, _ := u.requestRepo.FindAll(ctx, map[string]any{"collection_id": colID})
+
+	var recurse func(parentID *uuid.UUID) []map[string]any
+	recurse = func(parentID *uuid.UUID) []map[string]any {
+		items := make([]map[string]any, 0)
+		for _, f := range folders {
+			match := (f.ParentID == nil && parentID == nil) || (f.ParentID != nil && parentID != nil && *f.ParentID == *parentID)
+			if match {
+				idStr := f.ID.String()
+				folderNode := map[string]any{
+					"type":   "folder",
+					"id":     idStr,
+					"name":   f.Name,
+					"isOpen": false,
+					"items":  recurse(&f.ID),
+				}
+				items = append(items, folderNode)
+			}
+		}
+		for _, r := range requests {
+			match := (r.FolderID == nil && parentID == nil) || (r.FolderID != nil && parentID != nil && *r.FolderID == *parentID)
+			if match {
+				reqNode := map[string]any{
+					"type":   "request",
+					"id":     r.ID.String(),
+					"name":   r.Name,
+					"method": r.Method,
+					"url":    r.URL,
+					// Add dummy fields required by frontend to function
+					"headers":       []any{},
+					"params":        []any{},
+					"pathVariables": []any{},
+					"body": map[string]any{
+						"type":       "none",
+						"rawType":    "JSON",
+						"raw":        "",
+						"formData":   []any{},
+						"urlEncoded": []any{},
+					},
+					"auth":     map[string]any{"type": "none"},
+					"examples": []any{},
+				}
+				items = append(items, reqNode)
+			}
+		}
+		return items
+	}
+
+	return recurse(nil)
 }
 
 func (u *collectionUsecase) List(ctx context.Context, workspaceID uuid.UUID) ([]collection.CollectionResponse, error) {
@@ -44,7 +99,9 @@ func (u *collectionUsecase) List(ctx context.Context, workspaceID uuid.UUID) ([]
 
 	result := make([]collection.CollectionResponse, len(collections))
 	for i, c := range collections {
-		result[i] = toCollectionResponse(c)
+		res := toCollectionResponse(c)
+		res.Items = u.buildTree(ctx, c.ID)
+		result[i] = res
 	}
 	return result, nil
 }
@@ -88,6 +145,7 @@ func (u *collectionUsecase) Get(ctx context.Context, ID uuid.UUID) (*collection.
 		return nil, err
 	}
 	res := toCollectionResponse(*col)
+	res.Items = u.buildTree(ctx, col.ID)
 	return &res, nil
 }
 
@@ -250,5 +308,122 @@ func (u *collectionUsecase) Move(ctx context.Context, ID uuid.UUID, payload coll
 	}
 
 	res := toCollectionResponse(col)
+	return &res, nil
+}
+
+// ── Folder Operations ─────────────────────────────────────────────────────────
+
+func toFolderResponse(f collection.CollectionFolder) collection.FolderResponse {
+	return collection.FolderResponse{
+		ID:           f.ID,
+		CollectionID: f.CollectionID,
+		ParentID:     f.ParentID,
+		Name:         f.Name,
+		Slug:         f.Slug,
+		Idx:          f.Idx,
+	}
+}
+
+func (u *collectionUsecase) CreateFolder(ctx context.Context, payload collection.CreateFolderRequest) (*collection.FolderResponse, error) {
+	slug := strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-"))
+
+	// get max idx
+	var count int
+	conds := map[string]any{"collection_id": payload.CollectionID}
+	if payload.ParentID != nil {
+		conds["parent_id"] = *payload.ParentID
+	} else {
+		conds["parent_id"] = nil
+	}
+
+	if existing, err := u.folderRepo.FindAll(ctx, conds); err == nil {
+		count = len(existing)
+	}
+
+	folder := collection.CollectionFolder{
+		CollectionID: payload.CollectionID,
+		ParentID:     payload.ParentID,
+		Name:         payload.Name,
+		Slug:         slug,
+		Idx:          int(count),
+	}
+
+	inserted, err := u.folderRepo.Insert(ctx, folder, nil)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to create folder").Write()
+		return nil, err
+	}
+
+	res := toFolderResponse(inserted)
+	return &res, nil
+}
+
+func (u *collectionUsecase) getFolderEntity(ctx context.Context, ID uuid.UUID) (*collection.CollectionFolder, error) {
+	folder, err := u.folderRepo.FindById(ctx, ID)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to get folder").Write()
+		return nil, err
+	} else if folder == nil {
+		return nil, httperror.NewNotFoundError("folder not found")
+	}
+	return folder, nil
+}
+
+func (u *collectionUsecase) RenameFolder(ctx context.Context, ID uuid.UUID, payload collection.RenameFolderRequest) (*collection.FolderResponse, error) {
+	_, err := u.getFolderEntity(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
+
+	slug := strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-"))
+
+	folder, err := u.folderRepo.UpdateById(ctx, ID, map[string]any{
+		"name": payload.Name,
+		"slug": slug,
+	}, nil)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to rename folder").Write()
+		return nil, err
+	}
+
+	res := toFolderResponse(folder)
+	return &res, nil
+}
+
+func (u *collectionUsecase) DeleteFolder(ctx context.Context, ID uuid.UUID) error {
+	_, err := u.getFolderEntity(ctx, ID)
+	if err != nil {
+		return err
+	}
+
+	if err := u.folderRepo.DeleteById(ctx, ID, nil); err != nil {
+		logger.Error(ctx, err, "❌ Failed to delete folder").Write()
+		return err
+	}
+
+	return nil
+}
+
+func (u *collectionUsecase) DuplicateFolder(ctx context.Context, ID uuid.UUID) (*collection.FolderResponse, error) {
+	folder, err := u.getFolderEntity(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
+
+	newFolder := collection.CollectionFolder{
+		CollectionID: folder.CollectionID,
+		ParentID:     folder.ParentID,
+		Name:         folder.Name + " (copy)",
+		Slug:         folder.Slug + "-copy",
+		Idx:          folder.Idx + 1,
+	}
+
+	inserted, err := u.folderRepo.Insert(ctx, newFolder, nil)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to duplicate folder").Write()
+		return nil, err
+	}
+
+	res := toFolderResponse(inserted)
 	return &res, nil
 }
