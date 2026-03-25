@@ -103,6 +103,7 @@ func (u *collectionUsecase) List(ctx context.Context, workspaceID uuid.UUID) ([]
 		res.Items = u.buildTree(ctx, c.ID)
 		result[i] = res
 	}
+
 	return result, nil
 }
 
@@ -136,6 +137,7 @@ func (u *collectionUsecase) getEntity(ctx context.Context, ID uuid.UUID) (*colle
 	} else if col == nil {
 		return nil, httperror.NewNotFoundError("collection not found")
 	}
+
 	return col, nil
 }
 
@@ -144,6 +146,7 @@ func (u *collectionUsecase) Get(ctx context.Context, ID uuid.UUID) (*collection.
 	if err != nil {
 		return nil, err
 	}
+
 	res := toCollectionResponse(*col)
 	res.Items = u.buildTree(ctx, col.ID)
 	return &res, nil
@@ -177,9 +180,11 @@ func (u *collectionUsecase) UpdateFavorite(ctx context.Context, ID uuid.UUID, is
 		return nil, err
 	}
 
-	col, err := u.collectionRepo.UpdateById(ctx, ID, map[string]any{
+	update := map[string]any{
 		"is_favorite": isFavorite,
-	}, nil)
+	}
+
+	col, err := u.collectionRepo.UpdateById(ctx, ID, update, nil)
 	if err != nil {
 		logger.Error(ctx, err, "❌ Failed to update collection favorite").Write()
 		return nil, err
@@ -199,6 +204,7 @@ func (u *collectionUsecase) Delete(ctx context.Context, ID uuid.UUID) error {
 		logger.Error(ctx, err, "❌ Failed to delete collection").Write()
 		return err
 	}
+
 	return nil
 }
 
@@ -228,6 +234,7 @@ func (u *collectionUsecase) Duplicate(ctx context.Context, ID uuid.UUID) (*colle
 		if folder.ParentID != nil {
 			continue // handle root folders first
 		}
+
 		newFolder := collection.CollectionFolder{
 			CollectionID: col.ID,
 			ParentID:     nil,
@@ -235,20 +242,24 @@ func (u *collectionUsecase) Duplicate(ctx context.Context, ID uuid.UUID) (*colle
 			Slug:         folder.Slug,
 			Idx:          folder.Idx,
 		}
+
 		inserted, err := u.folderRepo.Insert(ctx, newFolder, nil)
 		if err == nil {
 			folderIDMap[folder.ID] = inserted.ID
 		}
 	}
+
 	// Handle child folders
 	for _, folder := range folders {
 		if folder.ParentID == nil {
 			continue
 		}
+
 		newParentID, ok := folderIDMap[*folder.ParentID]
 		if !ok {
 			continue
 		}
+
 		newFolder := collection.CollectionFolder{
 			CollectionID: col.ID,
 			ParentID:     &newParentID,
@@ -256,6 +267,7 @@ func (u *collectionUsecase) Duplicate(ctx context.Context, ID uuid.UUID) (*colle
 			Slug:         folder.Slug,
 			Idx:          folder.Idx,
 		}
+
 		inserted, err := u.folderRepo.Insert(ctx, newFolder, nil)
 		if err == nil {
 			folderIDMap[folder.ID] = inserted.ID
@@ -271,6 +283,7 @@ func (u *collectionUsecase) Duplicate(ctx context.Context, ID uuid.UUID) (*colle
 				newFolderID = &mapped
 			}
 		}
+
 		newReq := collection.CollectionRequest{
 			CollectionID: col.ID,
 			FolderID:     newFolderID,
@@ -286,6 +299,7 @@ func (u *collectionUsecase) Duplicate(ctx context.Context, ID uuid.UUID) (*colle
 			Settings:     req.Settings,
 			Idx:          req.Idx,
 		}
+
 		u.requestRepo.Insert(ctx, newReq, nil) //nolint:errcheck
 	}
 
@@ -299,9 +313,11 @@ func (u *collectionUsecase) Move(ctx context.Context, ID uuid.UUID, payload coll
 		return nil, err
 	}
 
-	col, err := u.collectionRepo.UpdateById(ctx, ID, map[string]any{
+	update := map[string]any{
 		"workspace_id": payload.TargetWorkspaceID,
-	}, nil)
+	}
+
+	col, err := u.collectionRepo.UpdateById(ctx, ID, update, nil)
 	if err != nil {
 		logger.Error(ctx, err, "❌ Failed to move collection").Write()
 		return nil, err
@@ -327,8 +343,6 @@ func toFolderResponse(f collection.CollectionFolder) collection.FolderResponse {
 func (u *collectionUsecase) CreateFolder(ctx context.Context, payload collection.CreateFolderRequest) (*collection.FolderResponse, error) {
 	slug := strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-"))
 
-	// get max idx
-	var count int
 	conds := map[string]any{"collection_id": payload.CollectionID}
 	if payload.ParentID != nil {
 		conds["parent_id"] = *payload.ParentID
@@ -336,9 +350,13 @@ func (u *collectionUsecase) CreateFolder(ctx context.Context, payload collection
 		conds["parent_id"] = nil
 	}
 
-	if existing, err := u.folderRepo.FindAll(ctx, conds); err == nil {
-		count = len(existing)
+	maxIdx, err := u.folderRepo.FindMaxIdx(ctx, conds)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to find max idx").Write()
+		return nil, err
 	}
+
+	count := maxIdx + 1
 
 	folder := collection.CollectionFolder{
 		CollectionID: payload.CollectionID,
@@ -366,6 +384,7 @@ func (u *collectionUsecase) getFolderEntity(ctx context.Context, ID uuid.UUID) (
 	} else if folder == nil {
 		return nil, httperror.NewNotFoundError("folder not found")
 	}
+
 	return folder, nil
 }
 
@@ -376,11 +395,12 @@ func (u *collectionUsecase) RenameFolder(ctx context.Context, ID uuid.UUID, payl
 	}
 
 	slug := strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-"))
-
-	folder, err := u.folderRepo.UpdateById(ctx, ID, map[string]any{
+	update := map[string]any{
 		"name": payload.Name,
 		"slug": slug,
-	}, nil)
+	}
+
+	folder, err := u.folderRepo.UpdateById(ctx, ID, update, nil)
 	if err != nil {
 		logger.Error(ctx, err, "❌ Failed to rename folder").Write()
 		return nil, err
@@ -410,6 +430,7 @@ func (u *collectionUsecase) DuplicateFolder(ctx context.Context, ID uuid.UUID) (
 		return nil, err
 	}
 
+	// Insert the root duplicate
 	newFolder := collection.CollectionFolder{
 		CollectionID: folder.CollectionID,
 		ParentID:     folder.ParentID,
@@ -422,6 +443,85 @@ func (u *collectionUsecase) DuplicateFolder(ctx context.Context, ID uuid.UUID) (
 	if err != nil {
 		logger.Error(ctx, err, "❌ Failed to duplicate folder").Write()
 		return nil, err
+	}
+
+	// folderIDMap seeds with the root; the multi-pass loop below propagates it
+	// to every descendant, so no separate subtree-collection step is needed.
+	folderIDMap := map[uuid.UUID]uuid.UUID{folder.ID: inserted.ID}
+
+	// Exclude the root (already handled) and keep only direct/indirect children.
+	allFolders, _ := u.folderRepo.FindAll(ctx, map[string]any{"collection_id": folder.CollectionID})
+	remaining := make([]collection.CollectionFolder, 0, len(allFolders))
+
+	for _, f := range allFolders {
+		if f.ID != folder.ID && f.ParentID != nil {
+			remaining = append(remaining, f)
+		}
+	}
+
+	// Insert children level by level; stop when nothing progresses.
+	cloneFolder := func(f collection.CollectionFolder, newParentID uuid.UUID) collection.CollectionFolder {
+		return collection.CollectionFolder{
+			CollectionID: inserted.CollectionID,
+			ParentID:     &newParentID,
+			Name:         f.Name,
+			Slug:         f.Slug,
+			Idx:          f.Idx,
+		}
+	}
+
+	for len(remaining) > 0 {
+		progressed := false
+		var deferred []collection.CollectionFolder
+
+		for _, f := range remaining {
+			newParentID, ok := folderIDMap[*f.ParentID]
+			if !ok {
+				deferred = append(deferred, f)
+				continue
+			}
+
+			if child, err := u.folderRepo.Insert(ctx, cloneFolder(f, newParentID), nil); err == nil {
+				folderIDMap[f.ID] = child.ID
+				progressed = true
+			} else {
+				deferred = append(deferred, f)
+			}
+		}
+
+		remaining = deferred
+		if !progressed {
+			break // avoid infinite loop on persistent errors
+		}
+	}
+
+	// Duplicate requests that belong to any folder in the copied subtree.
+	requests, _ := u.requestRepo.FindAll(ctx, map[string]any{"collection_id": folder.CollectionID})
+	for _, req := range requests {
+		if req.FolderID == nil {
+			continue
+		}
+
+		newFolderID, ok := folderIDMap[*req.FolderID]
+		if !ok {
+			continue
+		}
+
+		u.requestRepo.Insert(ctx, collection.CollectionRequest{ //nolint:errcheck
+			CollectionID: req.CollectionID,
+			FolderID:     &newFolderID,
+			Name:         req.Name,
+			Slug:         req.Slug,
+			Method:       req.Method,
+			URL:          req.URL,
+			Params:       req.Params,
+			Auth:         req.Auth,
+			Headers:      req.Headers,
+			Body:         req.Body,
+			Scripts:      req.Scripts,
+			Settings:     req.Settings,
+			Idx:          req.Idx,
+		}, nil)
 	}
 
 	res := toFolderResponse(inserted)
