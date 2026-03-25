@@ -46,6 +46,10 @@ export function DuplicateFolder(arg1) {
   return window['go']['main']['App']['DuplicateFolder'](arg1);
 }
 
+export function GetCollection(arg1) {
+  return window['go']['main']['App']['GetCollection'](arg1);
+}
+
 export function GetWorkspace(arg1) {
   return window['go']['main']['App']['GetWorkspace'](arg1);
 }

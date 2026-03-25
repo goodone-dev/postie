@@ -26,6 +26,8 @@ export function DuplicateEnvironment(arg1:string):Promise<environment.Environmen
 
 export function DuplicateFolder(arg1:string):Promise<collection.FolderResponse>;
 
+export function GetCollection(arg1:string):Promise<collection.CollectionResponse>;
+
 export function GetWorkspace(arg1:string):Promise<workspace.WorkspaceResponse>;
 
 export function ListCollections(arg1:string):Promise<Array<collection.CollectionResponse>>;

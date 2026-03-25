@@ -72,6 +72,16 @@ func (a *App) ListCollections(workspaceID string) ([]collection.CollectionRespon
 	return a.collectionUsecase.List(a.ctx, uid)
 }
 
+// GetCollection fetches a single collection with its full folder/request tree.
+// Call this when the user opens (expands) a collection in the sidebar.
+func (a *App) GetCollection(id string) (*collection.CollectionResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.Get(a.ctx, uid)
+}
+
 func (a *App) CreateCollection(payload collection.CreateCollectionRequest) (*collection.CollectionResponse, error) {
 	return a.collectionUsecase.Create(a.ctx, payload)
 }

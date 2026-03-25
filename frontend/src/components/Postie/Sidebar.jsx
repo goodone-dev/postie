@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { METHOD_COLORS } from '../../mock';
 import {
-  ListCollections, CreateCollection, RenameCollection, UpdateCollectionFavorite,
+  ListCollections, GetCollection, CreateCollection, RenameCollection, UpdateCollectionFavorite,
   DeleteCollection, DuplicateCollection, MoveCollection,
   CreateEnvironment, UpdateEnvironment, DeleteEnvironment, DuplicateEnvironment,
   CreateFolder, RenameFolder, DeleteFolder, DuplicateFolder
@@ -19,6 +19,23 @@ const cloneItem = (item) => ({
   ...(item.items ? { items: item.items.map(cloneItem) } : {}),
   ...(item.examples ? { examples: item.examples.map(ex => ({ ...ex, id: uid() })) } : {})
 });
+
+// Converts a raw backend tree node into the shape expected by renderNode.
+const normalizeItem = (node) => {
+  if (node.type === 'folder') {
+    return { ...node, isOpen: false, items: (node.items || []).map(normalizeItem) };
+  }
+  // request – ensure arrays exist so the rest of the UI never crashes
+  return {
+    ...node,
+    headers: node.headers || [],
+    params: node.params || [],
+    pathVariables: node.pathVariables || [],
+    examples: node.examples || [],
+    body: node.body || { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] },
+    auth: node.auth || { type: 'none' },
+  };
+};
 
 /* ─── CONFIRM MODAL ──────────────────────────────────────────── */
 const ConfirmModal = ({ title, message, onConfirm, onClose }) => (
@@ -399,7 +416,30 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: recurse(c.items) }));
   };
 
-  const toggleColOpen = (colId) => setCollections(prev => prev.map(c => c.id === colId ? { ...c, isOpen: !c.isOpen } : c));
+  const toggleColOpen = (colId) => {
+    setCollections(prev => {
+      const col = prev.find(c => c.id === colId);
+      if (!col) return prev;
+      const willOpen = !col.isOpen;
+      // Lazy-load the tree the first time this collection is expanded
+      if (willOpen && (!col.items || col.items.length === 0)) {
+        GetCollection(colId)
+          .then(data => {
+            if (data) {
+              setCollections(p => p.map(c =>
+                c.id === colId
+                  ? { ...c, isOpen: true, items: (data.items || []).map(normalizeItem) }
+                  : c
+              ));
+            }
+          })
+          .catch(console.error);
+        // Optimistically show the collection as open (items will populate async)
+        return prev.map(c => c.id === colId ? { ...c, isOpen: true } : c);
+      }
+      return prev.map(c => c.id === colId ? { ...c, isOpen: willOpen } : c);
+    });
+  };
   const toggleFolOpen = (colId, folId) => updateItemById(colId, folId, fol => ({ ...fol, isOpen: !fol.isOpen }));
   const toggleFav = (col) => {
     const newVal = !col.isFavorite;

@@ -99,9 +99,7 @@ func (u *collectionUsecase) List(ctx context.Context, workspaceID uuid.UUID) ([]
 
 	result := make([]collection.CollectionResponse, len(collections))
 	for i, c := range collections {
-		res := toCollectionResponse(c)
-		res.Items = u.buildTree(ctx, c.ID)
-		result[i] = res
+		result[i] = toCollectionResponse(c) // items left empty; use Get to load the tree on-demand
 	}
 
 	return result, nil
