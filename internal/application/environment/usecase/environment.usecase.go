@@ -38,7 +38,6 @@ func toEnvironmentResponse(e environment.Environment) environment.EnvironmentRes
 
 func (u *environmentUsecase) Create(ctx context.Context, payload environment.CreateEnvironmentRequest) (*environment.EnvironmentResponse, error) {
 	slug := strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-"))
-
 	varsBytes, _ := json.Marshal(payload.Variables)
 
 	entity := environment.Environment{
@@ -66,6 +65,7 @@ func (u *environmentUsecase) getEntity(ctx context.Context, ID uuid.UUID) (*envi
 	} else if env == nil {
 		return nil, httperror.NewNotFoundError("environment not found")
 	}
+
 	return env, nil
 }
 
@@ -122,6 +122,7 @@ func (u *environmentUsecase) List(ctx context.Context, workspaceID uuid.UUID) ([
 	envs, err := u.environmentRepo.FindAll(ctx, map[string]any{
 		"workspace_id": workspaceID,
 	})
+
 	if err != nil {
 		logger.Error(ctx, err, "❌ Failed to list environments").Write()
 		return nil, err
@@ -131,6 +132,7 @@ func (u *environmentUsecase) List(ctx context.Context, workspaceID uuid.UUID) ([
 	for i, e := range envs {
 		result[i] = toEnvironmentResponse(e)
 	}
+
 	return result, nil
 }
 

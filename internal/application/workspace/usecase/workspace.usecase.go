@@ -54,6 +54,7 @@ func (u *workspaceUsecase) getEntity(ctx context.Context, ID uuid.UUID) (*worksp
 	} else if ws == nil {
 		return nil, httperror.NewNotFoundError("workspace not found")
 	}
+
 	return ws, nil
 }
 

@@ -52,7 +52,6 @@ func open(ctx context.Context) *gorm.DB {
 		logger.Fatal(ctx, err, "❌ SQLite connection test failed").Write()
 	}
 
-	// FIXME: Error on auto migrate
 	if !config.DB.AutoMigrate {
 		return db
 	}
