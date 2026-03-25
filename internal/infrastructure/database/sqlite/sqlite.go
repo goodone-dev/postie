@@ -52,6 +52,12 @@ func open(ctx context.Context) *gorm.DB {
 		logger.Fatal(ctx, err, "❌ SQLite connection test failed").Write()
 	}
 
+	// SQLite disables foreign key enforcement by default.
+	// Enable it so ON DELETE CASCADE works correctly.
+	if err = db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
+		logger.Fatal(ctx, err, "❌ SQLite failed to enable foreign keys").Write()
+	}
+
 	if !config.DB.AutoMigrate {
 		return db
 	}
