@@ -48,6 +48,7 @@ const syntaxHighlight = (json) => {
 const ResponsePanel = ({ response, isSending, onSaveAsSample }) => {
   const [activeTab, setActiveTab] = useState('body');
   const [savedFlash, setSavedFlash] = useState(false);
+  const [comingSoonTip, setComingSoonTip] = useState(null);
 
   const handleSaveAsSample = () => {
     onSaveAsSample();
@@ -57,7 +58,12 @@ const ResponsePanel = ({ response, isSending, onSaveAsSample }) => {
   const [viewMode, setViewMode] = useState('pretty');
   const [copied, setCopied] = useState(false);
 
-  const tabs = ['Body', 'Cookies', 'Headers', 'Test Results'];
+  const tabs = [
+    { label: 'Body', key: 'body' },
+    { label: 'Cookies', key: 'cookies' },
+    { label: 'Headers', key: 'headers' },
+    { label: 'Test Results', key: 'test_results', disabled: true, tooltip: 'Test scripts & results are coming in a future release.' },
+  ];
 
   const handleCopy = () => {
     if (response?.body) {
@@ -84,32 +90,55 @@ const ResponsePanel = ({ response, isSending, onSaveAsSample }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', backgroundColor: '#1e1e1e', borderTop: '3px solid #2d2d2d', height: '100%', overflow: 'hidden' }}>
+      {/* Fixed-position coming-soon tooltip */}
+      {comingSoonTip && (
+        <div style={{ position: 'fixed', left: comingSoonTip.x, top: comingSoonTip.y, zIndex: 99999, pointerEvents: 'none', background: 'linear-gradient(135deg,#1e1e1e,#181818)', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', width: 220, boxShadow: '0 8px 24px rgba(0,0,0,.7)' }}>
+          <div style={{ color: '#FF6C37', fontSize: 11, fontWeight: 700, marginBottom: 3 }}>🚀 Coming Soon</div>
+          <div style={{ color: '#666', fontSize: 11, lineHeight: 1.5 }}>{comingSoonTip.text}</div>
+        </div>
+      )}
       {/* Response Header */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px', borderBottom: '1px solid #2d2d2d', backgroundColor: '#252525', gap: '12px', flexShrink: 0 }}>
         {/* Tabs */}
         <div style={{ display: 'flex', flex: 1 }}>
           {tabs.map(tab => {
-            const tabKey = tab.toLowerCase().replace(' ', '_');
-            return (
+            return tab.disabled ? (
+              <div
+                key={tab.key}
+                onMouseEnter={e => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  setComingSoonTip({ x: r.left, y: r.bottom + 6, text: tab.tooltip });
+                }}
+                onMouseLeave={() => setComingSoonTip(null)}
+              >
+                <button
+                  disabled
+                  style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', padding: '9px 14px', color: '#484848', fontSize: '12px', cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', fontFamily: 'inherit', opacity: 0.5, pointerEvents: 'none' }}
+                >
+                  {tab.label}
+                  <span style={{ fontSize: 9, color: '#555', fontWeight: 600, background: '#2a2a2a', border: '1px solid #333', borderRadius: 4, padding: '1px 5px', letterSpacing: '.03em' }}>SOON</span>
+                </button>
+              </div>
+            ) : (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tabKey)}
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
                 style={{
                   background: 'none',
                   border: 'none',
-                  borderBottom: activeTab === tabKey ? '2px solid #FF6C37' : '2px solid transparent',
+                  borderBottom: activeTab === tab.key ? '2px solid #FF6C37' : '2px solid transparent',
                   padding: '9px 14px',
-                  color: activeTab === tabKey ? '#FF6C37' : '#aaa',
+                  color: activeTab === tab.key ? '#FF6C37' : '#aaa',
                   fontSize: '12px',
                   cursor: 'pointer',
                   transition: 'color 0.15s',
                   whiteSpace: 'nowrap',
                   fontFamily: 'inherit'
                 }}
-                onMouseEnter={e => { if (activeTab !== tabKey) e.currentTarget.style.color = '#e0e0e0'; }}
-                onMouseLeave={e => { if (activeTab !== tabKey) e.currentTarget.style.color = '#aaa'; }}
+                onMouseEnter={e => { if (activeTab !== tab.key) e.currentTarget.style.color = '#e0e0e0'; }}
+                onMouseLeave={e => { if (activeTab !== tab.key) e.currentTarget.style.color = '#aaa'; }}
               >
-                {tab}
+                {tab.label}
               </button>
             );
           })}

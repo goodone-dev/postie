@@ -21,4 +21,11 @@ type CollectionUsecase interface {
 	RenameFolder(ctx context.Context, ID uuid.UUID, payload RenameFolderRequest) (*FolderResponse, error)
 	DeleteFolder(ctx context.Context, ID uuid.UUID) error
 	DuplicateFolder(ctx context.Context, ID uuid.UUID) (*FolderResponse, error)
+
+	// Request Operations
+	CreateRequest(ctx context.Context, payload CreateRequestRequest) (*RequestResponse, error)
+	RenameRequest(ctx context.Context, ID uuid.UUID, payload RenameRequestRequest) (*RequestResponse, error)
+	UpdateRequest(ctx context.Context, ID uuid.UUID, payload UpdateRequestRequest) (*RequestResponse, error)
+	DeleteRequest(ctx context.Context, ID uuid.UUID) error
+	DuplicateRequest(ctx context.Context, ID uuid.UUID) (*RequestResponse, error)
 }

@@ -6,12 +6,9 @@ import ResponsePanel from './components/Postie/ResponsePanel';
 import EnvironmentEditor from './components/Postie/EnvironmentEditor';
 import { NotificationPanel, SettingsModal, UserModal } from './components/Postie/TopModals';
 import { DEFAULT_REQUEST, METHOD_COLORS } from './mock';
-import { CreateWorkspace, ListWorkspaces, RenameWorkspace, DeleteWorkspace, ListEnvironments, UpdateEnvironment } from './wailsjs/go/main/App';
-import { Plus, X, Settings, Bell, Search, ChevronDown, Layers, Check, Globe, Trash2 } from 'lucide-react';
+import { CreateWorkspace, ListWorkspaces, RenameWorkspace, DeleteWorkspace, ListEnvironments, UpdateEnvironment, SendRequest, UpdateRequest, ListCollections, CreateRequest, GetCollection } from './wailsjs/go/main/App';
+import { Plus, X, Settings, Bell, Search, ChevronDown, Layers, Check, Globe, Trash2, Save } from 'lucide-react';
 import './App.css';
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const PROXY_URL = `${BACKEND_URL}/api/proxy`;
 
 let tabCounter = 1;
 const createTab = (req = null) => ({
@@ -20,6 +17,7 @@ const createTab = (req = null) => ({
   request: req ? { ...req } : { ...DEFAULT_REQUEST, id: `req-${Date.now()}` },
   response: null,
   isSending: false,
+  isDirty: false,
 });
 
 const createEnvTab = (env) => ({
@@ -27,14 +25,280 @@ const createEnvTab = (env) => ({
   type: 'environment',
   envId: env.id,
   envName: env.name,
+  isDirty: false,
 });
+
+const SaveRequestModal = ({ request, activeWorkspaceId, onClose, onSuccess }) => {
+  const [cols, setCols] = useState([]);
+  const [folderTree, setFolderTree] = useState([]);
+  const [selectedCol, setSelectedCol] = useState('');
+  const [selectedFol, setSelectedFol] = useState('');
+  const [name, setName] = useState(request.name || 'Untitled Request');
+  const [hoveredBtn, setHoveredBtn] = useState(null);
+  const inputRef = React.useRef(null);
+
+  useEffect(() => {
+    if (activeWorkspaceId) {
+      ListCollections(activeWorkspaceId).then(res => {
+        setCols(res || []);
+        if (res && res.length > 0) setSelectedCol(res[0].id);
+      }).catch(console.error);
+    }
+    setTimeout(() => inputRef.current?.select(), 50);
+  }, [activeWorkspaceId]);
+
+  useEffect(() => {
+    if (selectedCol) {
+      GetCollection(selectedCol).then(res => {
+        if (!res || !res.items) return setFolderTree([]);
+        const flattenFolders = (items, prefix = "") => {
+          let flat = [];
+          for (const it of items) {
+            if (it.type === 'folder' || (!it.method && it.items)) {
+              flat.push({ id: it.id, name: prefix + it.name });
+              // Indent children further
+              if (it.items && it.items.length > 0) {
+                flat = flat.concat(flattenFolders(it.items, prefix + "\u00A0\u00A0\u00A0↳\u00A0"));
+              }
+            }
+          }
+          return flat;
+        };
+        setFolderTree(flattenFolders(res.items));
+      }).catch(console.error);
+    } else {
+      setFolderTree([]);
+    }
+  }, [selectedCol]);
+
+  const handleSave = () => {
+    if (!selectedCol) return;
+    CreateRequest({
+      collection_id: selectedCol,
+      folder_id: selectedFol || undefined,
+      name,
+      method: request.method || 'GET',
+      url: request.url || '',
+      params: request.params || [],
+      path_variables: request.path_variables || [],
+      headers: request.headers || [],
+      auth: request.auth || { type: 'none' },
+      body: request.body || { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] }
+    }).then(res => {
+      if (res) onSuccess(res);
+      onClose();
+    }).catch(console.error);
+  };
+
+  const inputStyle = {
+    width: '100%', background: '#141414', border: '1px solid #333', borderRadius: 6,
+    padding: '9px 12px', color: '#e8e8e8', outline: 'none', fontFamily: 'inherit',
+    fontSize: 13, boxSizing: 'border-box', transition: 'border-color .15s',
+  };
+
+  const labelStyle = { color: '#666', fontSize: 11, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 6, display: 'block' };
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ width: 440, background: 'linear-gradient(145deg,#1a1a1a,#161616)', border: '1px solid #2a2a2a', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04)', overflow: 'hidden' }}>
+        {/* Header */}
+        <div style={{ padding: '18px 22px 16px', borderBottom: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ color: '#f0f0f0', fontWeight: 700, fontSize: 15, letterSpacing: '-.01em' }}>Save Request</div>
+            <div style={{ color: '#555', fontSize: 12, marginTop: 2 }}>Add to a collection to persist and organize</div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', lineHeight: 1, transition: 'color .15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#aaa'}
+            onMouseLeave={e => e.currentTarget.style.color = '#555'}
+          >✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '20px 22px' }}>
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Request Name</label>
+            <input
+              ref={inputRef}
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSave()}
+              onFocus={e => e.currentTarget.style.borderColor = '#FF6C37'}
+              onBlur={e => e.currentTarget.style.borderColor = '#333'}
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ marginBottom: cols.length > 0 && selectedCol ? 16 : 0 }}>
+            <label style={labelStyle}>Collection</label>
+            <select
+              value={selectedCol}
+              onChange={e => { setSelectedCol(e.target.value); setSelectedFol(''); }}
+              style={{ ...inputStyle, appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: 32 }}
+            >
+              <option value="" disabled>Select a collection…</option>
+              {cols.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+
+          {selectedCol && (
+            <div style={{ marginTop: 16 }}>
+              <label style={labelStyle}>Folder <span style={{ color: '#444', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
+              <select
+                value={selectedFol}
+                onChange={e => setSelectedFol(e.target.value)}
+                style={{ ...inputStyle, appearance: 'none', backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', paddingRight: 32 }}
+              >
+                <option value="">Root of collection</option>
+                {folderTree.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 22px 18px', borderTop: '1px solid #1f1f1f', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            onMouseEnter={() => setHoveredBtn('cancel')} onMouseLeave={() => setHoveredBtn(null)}
+            style={{ background: hoveredBtn === 'cancel' ? '#252525' : 'none', border: '1px solid #2d2d2d', borderRadius: 6, padding: '7px 18px', color: '#aaa', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', transition: 'all .15s' }}
+          >Cancel</button>
+          <button
+            onClick={handleSave}
+            disabled={!selectedCol || !name.trim()}
+            onMouseEnter={() => setHoveredBtn('save')} onMouseLeave={() => setHoveredBtn(null)}
+            style={{ background: (!selectedCol || !name.trim()) ? '#333' : hoveredBtn === 'save' ? '#e85f2a' : '#FF6C37', border: 'none', borderRadius: 6, padding: '7px 20px', color: (!selectedCol || !name.trim()) ? '#666' : '#fff', cursor: (!selectedCol || !name.trim()) ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', transition: 'all .15s', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Save size={13} />
+            Save Request
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DeleteWorkspaceModal = ({ ws, onClose, onConfirm }) => {
+  const [hovered, setHovered] = useState(null);
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ width: 390, background: 'linear-gradient(145deg,#1a1a1a,#161616)', border: '1px solid #2a2a2a', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04)', overflow: 'hidden' }}>
+        <div style={{ height: 3, background: 'linear-gradient(90deg,#f93e3e,#ff6b35)' }} />
+        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #1f1f1f', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(249,62,62,0.1)', border: '1px solid rgba(249,62,62,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f93e3e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+          </div>
+          <div>
+            <div style={{ color: '#f0f0f0', fontWeight: 700, fontSize: 14, letterSpacing: '-.01em' }}>Delete Workspace</div>
+            <div style={{ color: '#505050', fontSize: 11, marginTop: 2 }}>This action cannot be undone</div>
+          </div>
+        </div>
+        <div style={{ padding: '14px 20px 16px' }}>
+          <div style={{ color: '#777', fontSize: 13, lineHeight: 1.65 }}>
+            Delete <span style={{ color: '#e8a87c', fontWeight: 600 }}>"{ws.name}"</span>? All collections and requests inside will be permanently lost.
+          </div>
+        </div>
+        <div style={{ padding: '12px 20px 18px', borderTop: '1px solid #1f1f1f', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            onMouseEnter={() => setHovered('cancel')} onMouseLeave={() => setHovered(null)}
+            style={{ background: hovered === 'cancel' ? '#252525' : 'none', border: '1px solid #2d2d2d', borderRadius: 6, padding: '6px 16px', color: '#aaa', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
+          >Cancel</button>
+          <button
+            onClick={onConfirm}
+            onMouseEnter={() => setHovered('delete')} onMouseLeave={() => setHovered(null)}
+            style={{ background: hovered === 'delete' ? '#d43030' : '#f93e3e', border: 'none', borderRadius: 6, padding: '6px 18px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'background .15s', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            </svg>
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ConfirmUnsavedModal = ({ dirtyTabs, onDiscard, onClose }) => {
+  const [hoveredBtn, setHoveredBtn] = useState(null);
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ width: 420, background: 'linear-gradient(145deg,#1a1a1a,#161616)', border: '1px solid #2a2a2a', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04)', overflow: 'hidden' }}>
+        {/* Header with warning accent */}
+        <div style={{ height: 3, background: 'linear-gradient(90deg,#f93e3e,#ff6b35)' }} />
+        <div style={{ padding: '18px 22px 16px', borderBottom: '1px solid #222', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(249,62,62,0.12)', border: '1px solid rgba(249,62,62,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+            <span style={{ fontSize: 16 }}>⚠️</span>
+          </div>
+          <div>
+            <div style={{ color: '#f0f0f0', fontWeight: 700, fontSize: 15, letterSpacing: '-.01em' }}>Unsaved Changes</div>
+            <div style={{ color: '#555', fontSize: 12, marginTop: 2 }}>{dirtyTabs.length} tab{dirtyTabs.length !== 1 ? 's' : ''} with unsaved changes will be closed</div>
+          </div>
+        </div>
+
+        {/* Tab list */}
+        <div style={{ padding: '16px 22px' }}>
+          <div style={{ color: '#555', fontSize: 11, fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: 10 }}>Affected Tabs</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
+            {dirtyTabs.map(t => (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#1c1c1c', border: '1px solid #252525', borderRadius: 6, padding: '8px 12px' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FF6C37', flexShrink: 0 }} />
+                <span style={{ color: '#d0d0d0', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{t.request?.name || t.envName || 'Untitled'}</span>
+                {t.request?.method && <span style={{ fontSize: 10, fontWeight: 700, color: '#FF6C37', flexShrink: 0 }}>{t.request.method}</span>}
+              </div>
+            ))}
+          </div>
+          <div style={{ color: '#484848', fontSize: 12, marginTop: 14, lineHeight: 1.6 }}>
+            Discarding will permanently lose any unsaved changes. This action cannot be undone.
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '14px 22px 18px', borderTop: '1px solid #1f1f1f', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            onMouseEnter={() => setHoveredBtn('cancel')} onMouseLeave={() => setHoveredBtn(null)}
+            style={{ background: hoveredBtn === 'cancel' ? '#252525' : 'none', border: '1px solid #2d2d2d', borderRadius: 6, padding: '7px 18px', color: '#aaa', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', transition: 'all .15s' }}
+          >Keep Editing</button>
+          <button
+            onClick={onDiscard}
+            onMouseEnter={() => setHoveredBtn('discard')} onMouseLeave={() => setHoveredBtn(null)}
+            style={{ background: hoveredBtn === 'discard' ? '#d43030' : '#f93e3e', border: 'none', borderRadius: 6, padding: '7px 20px', color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13, fontFamily: 'inherit', transition: 'all .15s' }}
+          >Discard & Close</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 function App() {
   const [tabs, setTabs] = useState(() => { const t = createTab(); return [t]; });
-  const [activeTabId, setActiveTabId] = useState(null);
+  const [activeTabId, setActiveTabId] = useState('');
   const [selectedEnvId, setSelectedEnvId] = useState('');
   const [envDropdownOpen, setEnvDropdownOpen] = useState(false);
   const [environments, setEnvironments] = useState([]);
+  const [sidebarSignal, setSidebarSignal] = useState(null);
   // Workspace state
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState('');
@@ -47,6 +311,9 @@ function App() {
   const [renamingWorkspaceName, setRenamingWorkspaceName] = useState('');
   const [confirmDelWorkspace, setConfirmDelWorkspace] = useState(null); // { ws }
 
+  const [confirmCloseTabs, setConfirmCloseTabs] = useState(null); // { tabIds: [], dirtyTabs: [] }
+  const [saveModalRequest, setSaveModalRequest] = useState(null); // { request: req, onSuccess: fn }
+
   // Fetch initial workspaces
   useEffect(() => {
     ListWorkspaces()
@@ -58,6 +325,14 @@ function App() {
       })
   }, []);
 
+  // Auto-activate the only remaining tab if activeTabId is stale or null
+  useEffect(() => {
+    if (tabs.length > 0) {
+      const validActive = tabs.find(t => t.id === activeTabId);
+      if (!validActive) setActiveTabId(tabs[0].id);
+    }
+  }, [tabs, activeTabId]);
+
   // Fetch environments when active workspace changes
   useEffect(() => {
     if (!activeWorkspaceId) return;
@@ -67,6 +342,24 @@ function App() {
       })
       .catch((err) => console.error("Error fetching environments:", err));
   }, [activeWorkspaceId]);
+
+  // Global escape key handler to close modals/menus
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        setConfirmDelWorkspace(null);
+        setConfirmCloseTabs(null);
+        setSaveModalRequest(null);
+        setWorkspaceDropdownOpen(false);
+        setEnvDropdownOpen(false);
+        setShowSettings(false);
+        setShowUserMenu(false);
+        setShowNotifications(false);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
   // Modal states
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -143,22 +436,35 @@ function App() {
     setActiveTabId(newTab.id);
   };
 
-  const closeTab = (tabId, e) => {
-    if (e) e.stopPropagation();
+  const closeTabs = (tabIdsToClose) => {
+    const dirtyTabs = tabs.filter(t => tabIdsToClose.includes(t.id) && t.isDirty);
+    if (dirtyTabs.length > 0) {
+      setConfirmCloseTabs({ tabIds: tabIdsToClose, dirtyTabs });
+      return;
+    }
+    executeCloseTabs(tabIdsToClose);
+  };
+
+  const executeCloseTabs = (tabIdsToClose) => {
     setTabs(prev => {
-      const idx = prev.findIndex(t => t.id === tabId);
-      const newTabs = prev.filter(t => t.id !== tabId);
+      const newTabs = prev.filter(t => !tabIdsToClose.includes(t.id));
       if (newTabs.length === 0) {
         const newTab = createTab();
         setActiveTabId(newTab.id);
         return [newTab];
       }
-      if (activeTabId === tabId) {
-        const nextIdx = Math.min(idx, newTabs.length - 1);
+      if (tabIdsToClose.includes(activeTabId)) {
+        const firstIdx = prev.findIndex(t => t.id === tabIdsToClose[0]);
+        const nextIdx = Math.min(firstIdx, newTabs.length - 1);
         setActiveTabId(newTabs[nextIdx].id);
       }
       return newTabs;
     });
+  };
+
+  const closeTab = (tabId, e) => {
+    if (e) e.stopPropagation();
+    closeTabs([tabId]);
   };
 
   // Tab context menu actions
@@ -174,26 +480,23 @@ function App() {
       }
     },
     'sep',
-    { label: 'Close Tab', action: () => closeTab(tabCtx.tabId) },
+    { label: 'Close Tab', action: () => closeTabs([tabCtx.tabId]) },
     {
       label: 'Close Other Tabs', action: () => {
-        const keep = tabs.find(t => t.id === tabCtx.tabId);
-        if (!keep) return;
-        setTabs([keep]);
-        setActiveTabId(keep.id);
+        const toClose = tabs.filter(t => t.id !== tabCtx.tabId).map(t => t.id);
+        if (toClose.length > 0) closeTabs(toClose);
       }
     },
     {
       label: 'Close All Tabs', action: () => {
-        const newTab = createTab();
-        setTabs([newTab]);
-        setActiveTabId(newTab.id);
+        const toClose = tabs.map(t => t.id);
+        if (toClose.length > 0) closeTabs(toClose);
       }
     },
   ] : [];
 
   const updateActiveRequest = (request) => {
-    setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, request } : t));
+    setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, request, isDirty: true } : t));
   };
 
   const buildFetchOptions = (request) => {
@@ -213,18 +516,18 @@ function App() {
     }
 
     if (!['GET', 'HEAD'].includes(request.method)) {
-      if (request.body?.type === 'raw' && request.body.raw) {
-        options.body = request.body.raw;
+      if (request.body?.type === 'raw' && request.body.raw?.value) {
+        options.body = request.body.raw.value;
         if (!options.headers['Content-Type']) {
           const ctMap = { JSON: 'application/json', Text: 'text/plain', HTML: 'text/html', XML: 'application/xml', JavaScript: 'application/javascript' };
-          options.headers['Content-Type'] = ctMap[request.body.rawType] || 'application/json';
+          options.headers['Content-Type'] = ctMap[request.body.raw.type] || 'application/json';
         }
       } else if (request.body?.type === 'form-data') {
         const fd = new FormData();
-        (request.body.formData || []).filter(f => f.enabled && f.key).forEach(f => fd.append(f.key, f.value));
+        (request.body.form_data || []).filter(f => f.enabled && f.key).forEach(f => fd.append(f.key, f.value));
         options.body = fd;
       } else if (request.body?.type === 'x-www-form-urlencoded') {
-        const params = (request.body.urlEncoded || []).filter(f => f.enabled && f.key)
+        const params = (request.body.url_encoded || []).filter(f => f.enabled && f.key)
           .map(f => `${encodeURIComponent(f.key)}=${encodeURIComponent(f.value)}`).join('&');
         options.body = params;
         if (!options.headers['Content-Type']) options.headers['Content-Type'] = 'application/x-www-form-urlencoded';
@@ -263,12 +566,13 @@ function App() {
         url,
         method: request.method,
         headers: options.headers || {},
-        body: bodyStr,
+        body: bodyStr || '',
       };
 
-      const proxyResp = await axios.post(PROXY_URL, proxyPayload);
+      const proxyResp = await SendRequest(proxyPayload);
       const elapsed = Date.now() - startTime;
-      const data = proxyResp.data;
+      const data = proxyResp;
+
 
       const byteSize = new Blob([data.body || '']).size;
       const size = byteSize > 1024 ? `${(byteSize / 1024).toFixed(2)} KB` : `${byteSize} B`;
@@ -332,45 +636,86 @@ function App() {
     console.log('Saved example:', example);
   };
 
+  const saveRequest = async () => {
+    if (!activeTab || activeTab.type !== 'request') return;
+    const { request } = activeTab;
+
+    if (request.id.startsWith('req-')) {
+      setSaveModalRequest({
+        request,
+        onSuccess: (savedRequest) => {
+          setTabs(prev => prev.map(t => (t.type === 'request' && t.request.id === request.id) ? { ...t, request: savedRequest, isDirty: false } : t));
+          setSidebarSignal({
+            type: 'create_request',
+            request: savedRequest,
+            collectionId: savedRequest.collection_id,
+            folderId: savedRequest.folder_id
+          });
+        }
+      });
+      return;
+    }
+
+    try {
+      await UpdateRequest(request.id, {
+        name: request.name || 'Untitled',
+        method: request.method || 'GET',
+        url: request.url || '',
+        params: request.params || [],
+        path_variables: request.path_variables || [],
+        headers: request.headers || [],
+        auth: request.auth || { type: 'none' },
+        body: request.body || { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] }
+      });
+      setSidebarSignal({ type: 'update_request', id: request.id, name: request.name || 'Untitled', method: request.method || 'GET' });
+      setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, isDirty: false } : t));
+    } catch (e) {
+      console.error('Failed to save request', e);
+    }
+  };
+
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#1c1c1c', fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, sans-serif', overflow: 'hidden' }}>
 
+      {confirmCloseTabs && (
+        <ConfirmUnsavedModal
+          dirtyTabs={confirmCloseTabs.dirtyTabs}
+          onDiscard={() => {
+            const tabsToClose = confirmCloseTabs.tabIds;
+            setConfirmCloseTabs(null);
+            executeCloseTabs(tabsToClose);
+          }}
+          onClose={() => setConfirmCloseTabs(null)}
+        />
+      )}
+
+      {saveModalRequest && (
+        <SaveRequestModal
+          request={saveModalRequest.request}
+          activeWorkspaceId={activeWorkspaceId}
+          onSuccess={saveModalRequest.onSuccess}
+          onClose={() => setSaveModalRequest(null)}
+        />
+      )}
+
       {/* ── DELETE WORKSPACE CONFIRM MODAL ─────────────────────────────── */}
       {confirmDelWorkspace && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={e => { if (e.target === e.currentTarget) setConfirmDelWorkspace(null); }}>
-          <div style={{ width: 340, background: '#1e1e1e', border: '1px solid #3d3d3d', borderRadius: 8, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.7)' }}>
-            <div style={{ color: '#e0e0e0', fontWeight: 600, fontSize: 14, marginBottom: 10 }}>Delete Workspace</div>
-            <div style={{ color: '#888', fontSize: 12, lineHeight: 1.6, marginBottom: 18 }}>
-              Delete "{confirmDelWorkspace.ws.name}"? All collections inside will be permanently lost.
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setConfirmDelWorkspace(null)}
-                style={{ background: 'none', border: '1px solid #3d3d3d', borderRadius: 4, padding: '6px 16px', color: '#ccc', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .15s' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = '#666'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = '#3d3d3d'; }}
-              >Cancel</button>
-              <button onClick={() => {
-                const { ws } = confirmDelWorkspace;
-                setConfirmDelWorkspace(null);
-                DeleteWorkspace(ws.id)
-                  .then(() => {
-                    if (ws.id === activeWorkspaceId) {
-                      setActiveWorkspaceId(workspaces.find(w => w.id !== ws.id)?.id || '');
-                    }
-                    setWorkspaces(prev => prev.filter(w => w.id !== ws.id));
-                    setWorkspaceDropdownOpen(false);
-                  })
-                  .catch(console.error);
-              }}
-                style={{ background: '#f93e3e', border: 'none', borderRadius: 4, padding: '6px 16px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'background .15s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#d93030'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#f93e3e'; }}
-              >Delete</button>
-            </div>
-          </div>
-        </div>
+        <DeleteWorkspaceModal
+          ws={confirmDelWorkspace.ws}
+          onClose={() => setConfirmDelWorkspace(null)}
+          onConfirm={() => {
+            const { ws } = confirmDelWorkspace;
+            setConfirmDelWorkspace(null);
+            DeleteWorkspace(ws.id).then(() => {
+              if (ws.id === activeWorkspaceId) setActiveWorkspaceId(workspaces.find(w => w.id !== ws.id)?.id || '');
+              setWorkspaces(prev => prev.filter(w => w.id !== ws.id));
+              setWorkspaceDropdownOpen(false);
+            }).catch(console.error);
+          }}
+        />
       )}
+
 
       {/* ── TOP BAR ──────────────────────────────────────────────────── */}
       <div style={{ height: '48px', backgroundColor: '#1a1a1a', borderBottom: '1px solid #2d2d2d', display: 'flex', alignItems: 'center', padding: '0 12px', gap: '6px', flexShrink: 0, zIndex: 100 }}>
@@ -552,32 +897,45 @@ function App() {
 
         {/* ── Right Icons: Bell, Settings, User ── */}
         <div style={{ display: 'flex', gap: '2px', marginLeft: '4px', alignItems: 'center' }}>
-          {/* Notifications */}
-          <button data-testid="notifications-btn" title="Notifications"
-            onClick={() => { setShowNotifications(prev => !prev); setShowSettings(false); setShowUserMenu(false); }}
-            style={{ background: showNotifications ? '#2d2d2d' : 'none', border: 'none', color: showNotifications ? '#FF6C37' : '#777', cursor: 'pointer', padding: '6px', borderRadius: '4px', display: 'flex', alignItems: 'center', position: 'relative', transition: 'all 0.15s' }}
-            onMouseEnter={e => { if (!showNotifications) { e.currentTarget.style.background = '#2d2d2d'; e.currentTarget.style.color = '#e0e0e0'; } }}
-            onMouseLeave={e => { if (!showNotifications) { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#777'; } }}
-          >
-            <Bell size={15} />
-            {/* Unread badge */}
-            <div style={{ position: 'absolute', top: '4px', right: '4px', width: '7px', height: '7px', borderRadius: '50%', background: '#FF6C37', border: '1.5px solid #1a1a1a' }} />
-          </button>
+          {/* Notifications — coming soon */}
+          <div style={{ position: 'relative' }} className="coming-soon-wrap">
+            <button data-testid="notifications-btn"
+              disabled
+              style={{ background: 'none', border: 'none', color: '#444', cursor: 'not-allowed', padding: '6px', borderRadius: '4px', display: 'flex', alignItems: 'center', position: 'relative', opacity: 0.4 }}
+            >
+              <Bell size={15} />
+            </button>
+            <div className="coming-soon-tip" style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, background: 'linear-gradient(135deg,#1e1e1e,#181818)', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', width: 170, boxShadow: '0 8px 24px rgba(0,0,0,.6)', zIndex: 9999, pointerEvents: 'none', opacity: 0, transition: 'opacity .15s' }}>
+              <div style={{ color: '#FF6C37', fontSize: 11, fontWeight: 700, marginBottom: 3 }}>🚀 Coming Soon</div>
+              <div style={{ color: '#666', fontSize: 11, lineHeight: 1.5 }}>Notifications will be available in a future release.</div>
+            </div>
+          </div>
 
-          {/* Settings */}
-          <button data-testid="settings-btn" title="Settings"
-            onClick={() => { setShowSettings(prev => !prev); setShowNotifications(false); setShowUserMenu(false); }}
-            style={{ background: showSettings ? '#2d2d2d' : 'none', border: 'none', color: showSettings ? '#FF6C37' : '#777', cursor: 'pointer', padding: '6px', borderRadius: '4px', display: 'flex', alignItems: 'center', transition: 'all 0.15s' }}
-            onMouseEnter={e => { if (!showSettings) { e.currentTarget.style.background = '#2d2d2d'; e.currentTarget.style.color = '#e0e0e0'; } }}
-            onMouseLeave={e => { if (!showSettings) { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#777'; } }}
-          ><Settings size={15} /></button>
+          {/* Settings — coming soon */}
+          <div style={{ position: 'relative' }} className="coming-soon-wrap">
+            <button data-testid="settings-btn"
+              disabled
+              style={{ background: 'none', border: 'none', color: '#444', cursor: 'not-allowed', padding: '6px', borderRadius: '4px', display: 'flex', alignItems: 'center', opacity: 0.4 }}
+            >
+              <Settings size={15} />
+            </button>
+            <div className="coming-soon-tip" style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, background: 'linear-gradient(135deg,#1e1e1e,#181818)', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', width: 170, boxShadow: '0 8px 24px rgba(0,0,0,.6)', zIndex: 9999, pointerEvents: 'none', opacity: 0, transition: 'opacity .15s' }}>
+              <div style={{ color: '#FF6C37', fontSize: 11, fontWeight: 700, marginBottom: 3 }}>🚀 Coming Soon</div>
+              <div style={{ color: '#666', fontSize: 11, lineHeight: 1.5 }}>Settings panel will be available in a future release.</div>
+            </div>
+          </div>
 
-          {/* Help removed per spec */}
-
-          {/* User Avatar */}
-          <div data-testid="user-avatar-btn" onClick={() => { setShowUserMenu(prev => !prev); setShowNotifications(false); setShowSettings(false); }}
-            style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#FF6C37', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', marginLeft: '4px', border: showUserMenu ? '2px solid rgba(255,255,255,0.3)' : '2px solid transparent', transition: 'border 0.15s' }}>
-            <span style={{ color: '#fff', fontSize: '11px', fontWeight: '700' }}>U</span>
+          {/* User Avatar — coming soon */}
+          <div style={{ position: 'relative', marginLeft: '4px' }} className="coming-soon-wrap">
+            <div data-testid="user-avatar-btn"
+              style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#444', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'not-allowed', border: '2px solid transparent', opacity: 0.4 }}
+            >
+              <span style={{ color: '#888', fontSize: '11px', fontWeight: '700' }}>U</span>
+            </div>
+            <div className="coming-soon-tip" style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, background: 'linear-gradient(135deg,#1e1e1e,#181818)', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', width: 170, boxShadow: '0 8px 24px rgba(0,0,0,.6)', zIndex: 9999, pointerEvents: 'none', opacity: 0, transition: 'opacity .15s' }}>
+              <div style={{ color: '#FF6C37', fontSize: 11, fontWeight: 700, marginBottom: 3 }}>🚀 Coming Soon</div>
+              <div style={{ color: '#666', fontSize: 11, lineHeight: 1.5 }}>User profile & authentication coming soon.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -606,6 +964,24 @@ function App() {
             activeTabId={activeTabId}
             activeWorkspaceId={activeWorkspaceId}
             workspaces={workspaces}
+            sidebarSignal={sidebarSignal}
+            onRequestRenamed={(id, name) => setTabs(p => p.map(t => (t.type === 'request' && t.request.id === id) ? { ...t, name, request: { ...t.request, name } } : t))}
+            onRequestDeleted={(id) => {
+              setTabs(prev => {
+                const newTabs = prev.filter(t => !(t.type === 'request' && t.request.id === id));
+                if (newTabs.length === 0) {
+                  const newTab = createTab();
+                  setActiveTabId(newTab.id);
+                  return [newTab];
+                }
+                setActiveTabId(act => {
+                  const wasActive = prev.find(t => t.id === act)?.request?.id === id;
+                  if (wasActive) return newTabs[0].id;
+                  return act;
+                });
+                return newTabs;
+              });
+            }}
           />
         </div>
         {/* Sidebar resize handle */}
@@ -654,6 +1030,7 @@ function App() {
                       : <span style={{ fontSize: 10, fontWeight: 700, color: METHOD_COLORS[method] || '#e0e0e0', minWidth: 28, letterSpacing: '.3px' }}>{method?.substring(0, 4)}</span>
                     }
                     <span style={{ color: activeTabId === tab.id ? '#e0e0e0' : '#aaa', fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                    {tab.isDirty && <div style={{ width: 6, height: 6, backgroundColor: '#FF6C37', borderRadius: '50%', flexShrink: 0 }} />}
                     {!isEnvTab && tab.isSending && <div style={{ width: 10, height: 10, border: '2px solid #333', borderTopColor: '#FF6C37', borderRadius: '50%', animation: 'spin .8s linear infinite', flexShrink: 0 }} />}
                     <button onClick={e => closeTab(tab.id, e)}
                       style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 2, borderRadius: 2, display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'color .1s' }}
@@ -688,6 +1065,7 @@ function App() {
                   request={activeTab.request}
                   onRequestChange={updateActiveRequest}
                   onSend={sendRequest}
+                  onSave={saveRequest}
                   isSending={activeTab.isSending}
                 />
                 {/* Response resize handle */}

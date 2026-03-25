@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"github.com/go-resty/resty/v2"
 	"github.com/goodone-dev/postie/internal/domain/collection"
 	"github.com/goodone-dev/postie/internal/domain/environment"
 	"github.com/goodone-dev/postie/internal/domain/workspace"
@@ -154,6 +155,88 @@ func (a *App) DuplicateFolder(id string) (*collection.FolderResponse, error) {
 		return nil, err
 	}
 	return a.collectionUsecase.DuplicateFolder(a.ctx, uid)
+}
+
+// ── Request ───────────────────────────────────────────────────────────────
+
+type ProxyPayload struct {
+	URL     string            `json:"url"`
+	Method  string            `json:"method"`
+	Headers map[string]string `json:"headers"`
+	Body    string            `json:"body"`
+}
+
+type ProxyResponse struct {
+	Status     int               `json:"status"`
+	StatusText string            `json:"statusText"`
+	Headers    map[string]string `json:"headers"`
+	Body       string            `json:"body"`
+}
+
+func (a *App) SendRequest(payload ProxyPayload) (*ProxyResponse, error) {
+	client := resty.New()
+	req := client.R()
+	for k, v := range payload.Headers {
+		req.SetHeader(k, v)
+	}
+	if payload.Body != "" {
+		req.SetBody(payload.Body)
+	}
+
+	resp, err := req.Execute(payload.Method, payload.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	headers := make(map[string]string)
+	for k, v := range resp.Header() {
+		if len(v) > 0 {
+			headers[k] = v[0]
+		}
+	}
+
+	return &ProxyResponse{
+		Status:     resp.StatusCode(),
+		StatusText: resp.Status(),
+		Headers:    headers,
+		Body:       string(resp.Body()),
+	}, nil
+}
+
+func (a *App) CreateRequest(payload collection.CreateRequestRequest) (*collection.RequestResponse, error) {
+	return a.collectionUsecase.CreateRequest(a.ctx, payload)
+}
+
+func (a *App) RenameRequest(id string, payload collection.RenameRequestRequest) (*collection.RequestResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.RenameRequest(a.ctx, uid, payload)
+}
+
+func (a *App) UpdateRequest(id string, payload collection.UpdateRequestRequest) (*collection.RequestResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.UpdateRequest(a.ctx, uid, payload)
+}
+
+func (a *App) DeleteRequest(id string) error {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	return a.collectionUsecase.DeleteRequest(a.ctx, uid)
+}
+
+func (a *App) DuplicateRequest(id string) (*collection.RequestResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	return a.collectionUsecase.DuplicateRequest(a.ctx, uid)
 }
 
 // ── Environment ───────────────────────────────────────────────────────────────

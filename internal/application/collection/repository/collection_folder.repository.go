@@ -33,10 +33,13 @@ func (r *collectionFolderRepository) FindMaxIdx(ctx context.Context, conds map[s
 		return
 	}
 
-	err = r.DB().WithContext(ctx).Raw(qry, args...).Scan(&maxIdx).Error
+	var res *int
+	err = r.DB().WithContext(ctx).Raw(qry, args...).Scan(&res).Error
 	if err != nil {
 		return 0, err
+	} else if res == nil {
+		return 0, nil
 	}
 
-	return maxIdx, nil
+	return *res, nil
 }

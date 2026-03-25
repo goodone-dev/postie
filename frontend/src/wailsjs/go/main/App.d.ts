@@ -3,12 +3,15 @@
 import {collection} from '../models';
 import {environment} from '../models';
 import {workspace} from '../models';
+import {main} from '../models';
 
 export function CreateCollection(arg1:collection.CreateCollectionRequest):Promise<collection.CollectionResponse>;
 
 export function CreateEnvironment(arg1:environment.CreateEnvironmentRequest):Promise<environment.EnvironmentResponse>;
 
 export function CreateFolder(arg1:collection.CreateFolderRequest):Promise<collection.FolderResponse>;
+
+export function CreateRequest(arg1:collection.CreateRequestRequest):Promise<collection.RequestResponse>;
 
 export function CreateWorkspace(arg1:workspace.CreateWorkspaceRequest):Promise<workspace.WorkspaceResponse>;
 
@@ -18,6 +21,8 @@ export function DeleteEnvironment(arg1:string):Promise<void>;
 
 export function DeleteFolder(arg1:string):Promise<void>;
 
+export function DeleteRequest(arg1:string):Promise<void>;
+
 export function DeleteWorkspace(arg1:string):Promise<void>;
 
 export function DuplicateCollection(arg1:string):Promise<collection.CollectionResponse>;
@@ -25,6 +30,8 @@ export function DuplicateCollection(arg1:string):Promise<collection.CollectionRe
 export function DuplicateEnvironment(arg1:string):Promise<environment.EnvironmentResponse>;
 
 export function DuplicateFolder(arg1:string):Promise<collection.FolderResponse>;
+
+export function DuplicateRequest(arg1:string):Promise<collection.RequestResponse>;
 
 export function GetCollection(arg1:string):Promise<collection.CollectionResponse>;
 
@@ -42,8 +49,14 @@ export function RenameCollection(arg1:string,arg2:string):Promise<collection.Col
 
 export function RenameFolder(arg1:string,arg2:collection.RenameFolderRequest):Promise<collection.FolderResponse>;
 
+export function RenameRequest(arg1:string,arg2:collection.RenameRequestRequest):Promise<collection.RequestResponse>;
+
 export function RenameWorkspace(arg1:string,arg2:string):Promise<workspace.WorkspaceResponse>;
+
+export function SendRequest(arg1:main.ProxyPayload):Promise<main.ProxyResponse>;
 
 export function UpdateCollectionFavorite(arg1:string,arg2:boolean):Promise<collection.CollectionResponse>;
 
 export function UpdateEnvironment(arg1:string,arg2:environment.UpdateEnvironmentRequest):Promise<environment.EnvironmentResponse>;
+
+export function UpdateRequest(arg1:string,arg2:collection.UpdateRequestRequest):Promise<collection.RequestResponse>;

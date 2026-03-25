@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
 	"github.com/goodone-dev/postie/internal/domain/collection"
@@ -59,25 +60,19 @@ func (u *collectionUsecase) buildTree(ctx context.Context, colID uuid.UUID) []ma
 		for _, r := range requests {
 			match := (r.FolderID == nil && parentID == nil) || (r.FolderID != nil && parentID != nil && *r.FolderID == *parentID)
 			if match {
+				rr := toRequestResponse(r)
 				reqNode := map[string]any{
-					"type":   "request",
-					"id":     r.ID.String(),
-					"name":   r.Name,
-					"method": r.Method,
-					"url":    r.URL,
-					// Add dummy fields required by frontend to function
-					"headers":       []any{},
-					"params":        []any{},
-					"pathVariables": []any{},
-					"body": map[string]any{
-						"type":       "none",
-						"rawType":    "JSON",
-						"raw":        "",
-						"formData":   []any{},
-						"urlEncoded": []any{},
-					},
-					"auth":     map[string]any{"type": "none"},
-					"examples": []any{},
+					"type":           "request",
+					"id":             rr.ID.String(),
+					"name":           rr.Name,
+					"method":         rr.Method,
+					"url":            rr.URL,
+					"headers":        rr.Headers,
+					"params":         rr.Params,
+					"path_variables": rr.PathVariables,
+					"body":           rr.Body,
+					"auth":           rr.Auth,
+					// "examples": []any{}, // assuming not used yet
 				}
 				items = append(items, reqNode)
 			}
@@ -283,19 +278,18 @@ func (u *collectionUsecase) Duplicate(ctx context.Context, ID uuid.UUID) (*colle
 		}
 
 		newReq := collection.CollectionRequest{
-			CollectionID: col.ID,
-			FolderID:     newFolderID,
-			Name:         req.Name,
-			Slug:         req.Slug,
-			Method:       req.Method,
-			URL:          req.URL,
-			Params:       req.Params,
-			Auth:         req.Auth,
-			Headers:      req.Headers,
-			Body:         req.Body,
-			Scripts:      req.Scripts,
-			Settings:     req.Settings,
-			Idx:          req.Idx,
+			CollectionID:  col.ID,
+			FolderID:      newFolderID,
+			Name:          req.Name,
+			Slug:          req.Slug,
+			Method:        req.Method,
+			URL:           req.URL,
+			Params:        req.Params,
+			PathVariables: req.PathVariables,
+			Auth:          req.Auth,
+			Headers:       req.Headers,
+			Body:          req.Body,
+			Idx:           req.Idx,
 		}
 
 		u.requestRepo.Insert(ctx, newReq, nil) //nolint:errcheck
@@ -506,22 +500,219 @@ func (u *collectionUsecase) DuplicateFolder(ctx context.Context, ID uuid.UUID) (
 		}
 
 		u.requestRepo.Insert(ctx, collection.CollectionRequest{ //nolint:errcheck
-			CollectionID: req.CollectionID,
-			FolderID:     &newFolderID,
-			Name:         req.Name,
-			Slug:         req.Slug,
-			Method:       req.Method,
-			URL:          req.URL,
-			Params:       req.Params,
-			Auth:         req.Auth,
-			Headers:      req.Headers,
-			Body:         req.Body,
-			Scripts:      req.Scripts,
-			Settings:     req.Settings,
-			Idx:          req.Idx,
+			CollectionID:  req.CollectionID,
+			FolderID:      &newFolderID,
+			Name:          req.Name,
+			Slug:          req.Slug,
+			Method:        req.Method,
+			URL:           req.URL,
+			Params:        req.Params,
+			PathVariables: req.PathVariables,
+			Auth:          req.Auth,
+			Headers:       req.Headers,
+			Body:          req.Body,
+			Idx:           req.Idx,
 		}, nil)
 	}
 
 	res := toFolderResponse(inserted)
+	return &res, nil
+}
+
+// ── Request Operations ─────────────────────────────────────────────────────────
+
+func toRequestResponse(r collection.CollectionRequest) collection.RequestResponse {
+	res := collection.RequestResponse{
+		ID:           r.ID,
+		CollectionID: r.CollectionID,
+		FolderID:     r.FolderID,
+		Name:         r.Name,
+		Slug:         r.Slug,
+		Method:       r.Method,
+		URL:          r.URL,
+	}
+
+	json.Unmarshal(r.Params, &res.Params)
+	json.Unmarshal(r.PathVariables, &res.PathVariables)
+	json.Unmarshal(r.Auth, &res.Auth)
+	json.Unmarshal(r.Headers, &res.Headers)
+	json.Unmarshal(r.Body, &res.Body)
+
+	if res.Params == nil {
+		res.Params = make([]collection.KeyValue, 0)
+	}
+	if res.PathVariables == nil {
+		res.PathVariables = make([]collection.KeyValue, 0)
+	}
+	if res.Headers == nil {
+		res.Headers = make([]collection.KeyValue, 0)
+	}
+	if res.Auth.Type == "" {
+		res.Auth.Type = "none"
+	}
+	if res.Body.Type == "" {
+		res.Body.Type = "none"
+	}
+
+	return res
+}
+
+func (u *collectionUsecase) CreateRequest(ctx context.Context, payload collection.CreateRequestRequest) (*collection.RequestResponse, error) {
+	slug := strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-"))
+
+	conds := map[string]any{"collection_id": payload.CollectionID}
+	if payload.FolderID != nil {
+		conds["folder_id"] = *payload.FolderID
+	} else {
+		conds["folder_id"] = nil
+	}
+
+	maxIdx, err := u.requestRepo.FindMaxIdx(ctx, conds)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to find max idx").Write()
+		return nil, err
+	}
+
+	bParams, _ := json.Marshal(payload.Params)
+	bPathVars, _ := json.Marshal(payload.PathVariables)
+	bAuth, _ := json.Marshal(payload.Auth)
+	bHeaders, _ := json.Marshal(payload.Headers)
+	bBody, _ := json.Marshal(payload.Body)
+
+	req := collection.CollectionRequest{
+		CollectionID:  payload.CollectionID,
+		FolderID:      payload.FolderID,
+		Name:          payload.Name,
+		Slug:          slug,
+		Method:        payload.Method,
+		URL:           payload.URL,
+		Params:        bParams,
+		PathVariables: bPathVars,
+		Auth:          bAuth,
+		Headers:       bHeaders,
+		Body:          bBody,
+		Idx:           maxIdx + 1,
+	}
+
+	inserted, err := u.requestRepo.Insert(ctx, req, nil)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to create request").Write()
+		return nil, err
+	}
+
+	res := toRequestResponse(inserted)
+	return &res, nil
+}
+
+func (u *collectionUsecase) getRequestEntity(ctx context.Context, ID uuid.UUID) (*collection.CollectionRequest, error) {
+	req, err := u.requestRepo.FindById(ctx, ID)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to get request").Write()
+		return nil, err
+	} else if req == nil {
+		return nil, httperror.NewNotFoundError("request not found")
+	}
+
+	return req, nil
+}
+
+func (u *collectionUsecase) RenameRequest(ctx context.Context, ID uuid.UUID, payload collection.RenameRequestRequest) (*collection.RequestResponse, error) {
+	_, err := u.getRequestEntity(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
+
+	slug := strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-"))
+	update := map[string]any{
+		"name": payload.Name,
+		"slug": slug,
+	}
+
+	req, err := u.requestRepo.UpdateById(ctx, ID, update, nil)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to rename request").Write()
+		return nil, err
+	}
+
+	res := toRequestResponse(req)
+	return &res, nil
+}
+
+func (u *collectionUsecase) UpdateRequest(ctx context.Context, ID uuid.UUID, payload collection.UpdateRequestRequest) (*collection.RequestResponse, error) {
+	_, err := u.getRequestEntity(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
+
+	bParams, _ := json.Marshal(payload.Params)
+	bPathVars, _ := json.Marshal(payload.PathVariables)
+	bAuth, _ := json.Marshal(payload.Auth)
+	bHeaders, _ := json.Marshal(payload.Headers)
+	bBody, _ := json.Marshal(payload.Body)
+
+	update := map[string]any{
+		"name":           payload.Name,
+		"slug":           strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-")),
+		"method":         payload.Method,
+		"url":            payload.URL,
+		"params":         bParams,
+		"path_variables": bPathVars,
+		"auth":           bAuth,
+		"headers":        bHeaders,
+		"body":           bBody,
+	}
+
+	req, err := u.requestRepo.UpdateById(ctx, ID, update, nil)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to update request").Write()
+		return nil, err
+	}
+
+	res := toRequestResponse(req)
+	return &res, nil
+}
+
+func (u *collectionUsecase) DeleteRequest(ctx context.Context, ID uuid.UUID) error {
+	_, err := u.getRequestEntity(ctx, ID)
+	if err != nil {
+		return err
+	}
+
+	if err := u.requestRepo.DeleteById(ctx, ID, nil); err != nil {
+		logger.Error(ctx, err, "❌ Failed to delete request").Write()
+		return err
+	}
+
+	return nil
+}
+
+func (u *collectionUsecase) DuplicateRequest(ctx context.Context, ID uuid.UUID) (*collection.RequestResponse, error) {
+	req, err := u.getRequestEntity(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
+
+	newReq := collection.CollectionRequest{
+		CollectionID:  req.CollectionID,
+		FolderID:      req.FolderID,
+		Name:          req.Name + " (copy)",
+		Slug:          req.Slug + "-copy",
+		Method:        req.Method,
+		URL:           req.URL,
+		Params:        req.Params,
+		PathVariables: req.PathVariables,
+		Auth:          req.Auth,
+		Headers:       req.Headers,
+		Body:          req.Body,
+		Idx:           req.Idx + 1,
+	}
+
+	inserted, err := u.requestRepo.Insert(ctx, newReq, nil)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to duplicate request").Write()
+		return nil, err
+	}
+
+	res := toRequestResponse(inserted)
 	return &res, nil
 }

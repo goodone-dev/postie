@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS collection_folders (
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE
+    FOREIGN KEY (parent_id) REFERENCES collection_folders(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_collection_folders_collection_id ON collection_folders(collection_id);

@@ -68,3 +68,8 @@ button, label {
 textarea {
   resize: vertical;
 }
+
+/* Coming Soon tooltip */
+.coming-soon-wrap:hover .coming-soon-tip {
+  opacity: 1 !important;
+}

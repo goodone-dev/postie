@@ -14,6 +14,10 @@ export function CreateFolder(arg1) {
   return window['go']['main']['App']['CreateFolder'](arg1);
 }
 
+export function CreateRequest(arg1) {
+  return window['go']['main']['App']['CreateRequest'](arg1);
+}
+
 export function CreateWorkspace(arg1) {
   return window['go']['main']['App']['CreateWorkspace'](arg1);
 }
@@ -30,6 +34,10 @@ export function DeleteFolder(arg1) {
   return window['go']['main']['App']['DeleteFolder'](arg1);
 }
 
+export function DeleteRequest(arg1) {
+  return window['go']['main']['App']['DeleteRequest'](arg1);
+}
+
 export function DeleteWorkspace(arg1) {
   return window['go']['main']['App']['DeleteWorkspace'](arg1);
 }
@@ -44,6 +52,10 @@ export function DuplicateEnvironment(arg1) {
 
 export function DuplicateFolder(arg1) {
   return window['go']['main']['App']['DuplicateFolder'](arg1);
+}
+
+export function DuplicateRequest(arg1) {
+  return window['go']['main']['App']['DuplicateRequest'](arg1);
 }
 
 export function GetCollection(arg1) {
@@ -78,8 +90,16 @@ export function RenameFolder(arg1, arg2) {
   return window['go']['main']['App']['RenameFolder'](arg1, arg2);
 }
 
+export function RenameRequest(arg1, arg2) {
+  return window['go']['main']['App']['RenameRequest'](arg1, arg2);
+}
+
 export function RenameWorkspace(arg1, arg2) {
   return window['go']['main']['App']['RenameWorkspace'](arg1, arg2);
+}
+
+export function SendRequest(arg1) {
+  return window['go']['main']['App']['SendRequest'](arg1);
 }
 
 export function UpdateCollectionFavorite(arg1, arg2) {
@@ -88,4 +108,8 @@ export function UpdateCollectionFavorite(arg1, arg2) {
 
 export function UpdateEnvironment(arg1, arg2) {
   return window['go']['main']['App']['UpdateEnvironment'](arg1, arg2);
+}
+
+export function UpdateRequest(arg1, arg2) {
+  return window['go']['main']['App']['UpdateRequest'](arg1, arg2);
 }

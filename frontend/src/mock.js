@@ -13,8 +13,8 @@ export const MOCK_COLLECTIONS = [
         url: 'https://reqres.in/api/users?page=2',
         headers: [{ key: 'Accept', value: 'application/json', enabled: true }],
         params: [{ key: 'page', value: '2', enabled: true }],
-        pathVariables: [],
-        body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] },
+        path_variables: [],
+        body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] },
         auth: { type: 'none' },
         examples: [
           { id: 'ex-1', name: '200 OK - Users List', status: 200, body: '{"page":2,"data":[{"id":7,"email":"michael.lawson@reqres.in"}]}' }
@@ -34,8 +34,8 @@ export const MOCK_COLLECTIONS = [
             url: 'https://reqres.in/api/users',
             headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
             params: [],
-            pathVariables: [],
-            body: { type: 'raw', rawType: 'JSON', raw: '{\n  "name": "John Doe",\n  "job": "engineer"\n}', formData: [], urlEncoded: [] },
+            path_variables: [],
+            body: { type: 'raw', raw: { type: 'JSON', value: '{\n  "name": "John Doe",\n  "job": "engineer"\n}' }, form_data: [], url_encoded: [] },
             auth: { type: 'none' },
             examples: []
           },
@@ -47,8 +47,8 @@ export const MOCK_COLLECTIONS = [
             url: 'https://reqres.in/api/users/:id',
             headers: [],
             params: [],
-            pathVariables: [{ key: 'id', value: '2', enabled: true }],
-            body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] },
+            path_variables: [{ key: 'id', value: '2', enabled: true }],
+            body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] },
             auth: { type: 'none' },
             examples: []
           },
@@ -60,8 +60,8 @@ export const MOCK_COLLECTIONS = [
             url: 'https://reqres.in/api/users/:id',
             headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
             params: [],
-            pathVariables: [{ key: 'id', value: '2', enabled: true }],
-            body: { type: 'raw', rawType: 'JSON', raw: '{\n  "name": "Jane Smith",\n  "job": "manager"\n}', formData: [], urlEncoded: [] },
+            path_variables: [{ key: 'id', value: '2', enabled: true }],
+            body: { type: 'raw', raw: { type: 'JSON', value: '{\n  "name": "Jane Smith",\n  "job": "manager"\n}' }, form_data: [], url_encoded: [] },
             auth: { type: 'none' },
             examples: []
           },
@@ -73,8 +73,8 @@ export const MOCK_COLLECTIONS = [
             url: 'https://reqres.in/api/users/:id',
             headers: [],
             params: [],
-            pathVariables: [{ key: 'id', value: '2', enabled: true }],
-            body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] },
+            path_variables: [{ key: 'id', value: '2', enabled: true }],
+            body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] },
             auth: { type: 'none' },
             examples: []
           }
@@ -96,8 +96,8 @@ export const MOCK_COLLECTIONS = [
         url: 'https://jsonplaceholder.typicode.com/posts',
         headers: [],
         params: [],
-        pathVariables: [],
-        body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] },
+        path_variables: [],
+        body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] },
         auth: { type: 'none' },
         examples: []
       },
@@ -115,8 +115,8 @@ export const MOCK_COLLECTIONS = [
             url: 'https://jsonplaceholder.typicode.com/posts/:id',
             headers: [],
             params: [],
-            pathVariables: [{ key: 'id', value: '1', enabled: true }],
-            body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] },
+            path_variables: [{ key: 'id', value: '1', enabled: true }],
+            body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] },
             auth: { type: 'none' },
             examples: []
           },
@@ -128,8 +128,8 @@ export const MOCK_COLLECTIONS = [
             url: 'https://jsonplaceholder.typicode.com/posts',
             headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
             params: [],
-            pathVariables: [],
-            body: { type: 'raw', rawType: 'JSON', raw: '{\n  "title": "foo",\n  "body": "bar",\n  "userId": 1\n}', formData: [], urlEncoded: [] },
+            path_variables: [],
+            body: { type: 'raw', raw: { type: 'JSON', value: '{\n  "title": "foo",\n  "body": "bar",\n  "userId": 1\n}' }, form_data: [], url_encoded: [] },
             auth: { type: 'none' },
             examples: []
           }
@@ -151,8 +151,8 @@ export const MOCK_COLLECTIONS = [
         url: 'https://api.github.com/users/:username',
         headers: [{ key: 'Accept', value: 'application/vnd.github.v3+json', enabled: true }],
         params: [],
-        pathVariables: [{ key: 'username', value: 'octocat', enabled: true }],
-        body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] },
+        path_variables: [{ key: 'username', value: 'octocat', enabled: true }],
+        body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] },
         auth: { type: 'none' },
         examples: []
       }
@@ -209,8 +209,8 @@ export const DEFAULT_REQUEST = {
   url: '',
   headers: [{ key: '', value: '', enabled: true }],
   params: [{ key: '', value: '', enabled: true }],
-  pathVariables: [],
-  body: { type: 'none', rawType: 'JSON', raw: '', formData: [{ key: '', value: '', fieldType: 'text', enabled: true }], urlEncoded: [{ key: '', value: '', enabled: true }] },
+  path_variables: [],
+  body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [{ key: '', value: '', fieldType: 'text', enabled: true }], url_encoded: [{ key: '', value: '', enabled: true }] },
   auth: { type: 'none', bearerToken: '', basicUsername: '', basicPassword: '' }
 };
 

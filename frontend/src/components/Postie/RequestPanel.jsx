@@ -36,9 +36,10 @@ const extractPathVars = (url) => {
 };
 
 /* ─── REQUEST PANEL ─────────────────────────────────────────── */
-const RequestPanel = ({ request, onRequestChange, onSend, isSending }) => {
+const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending }) => {
   const [activeTab, setActiveTab] = useState('params');
   const [methodDropdownOpen, setMethodDropdownOpen] = useState(false);
+  const [comingSoonTip, setComingSoonTip] = useState(null); // { x, y, text }
   const [activeScriptTab, setActiveScriptTab] = useState('pre-request');
   const [preRequestScript, setPreRequestScript] = useState('');
   const [postResponseScript, setPostResponseScript] = useState('');
@@ -61,13 +62,13 @@ const RequestPanel = ({ request, onRequestChange, onSend, isSending }) => {
 
   // Path variable sync
   const pathVarKeys = extractPathVars(request.url || '');
-  const pathVars = request.pathVariables || [];
+  const pathVars = request.path_variables || [];
   useEffect(() => {
     const existingKeys = pathVars.map(p => p.key);
     const toAdd = pathVarKeys.filter(k => !existingKeys.includes(k));
     const toRemove = existingKeys.filter(k => !pathVarKeys.includes(k));
     if (toAdd.length > 0 || toRemove.length > 0) {
-      onRequestChange({ ...request, pathVariables: [...pathVars.filter(p => pathVarKeys.includes(p.key)), ...toAdd.map(k => ({ key: k, value: '', enabled: true }))] });
+      onRequestChange({ ...request, path_variables: [...pathVars.filter(p => pathVarKeys.includes(p.key)), ...toAdd.map(k => ({ key: k, value: '', enabled: true }))] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request.url]);
@@ -122,23 +123,30 @@ const RequestPanel = ({ request, onRequestChange, onSend, isSending }) => {
   };
   const addBodyRow = (field) => updateBody({ [field]: [...(request.body[field] || []), { key: '', value: '', fieldType: 'text', enabled: true }] });
   const removeBodyRow = (field, index) => updateBody({ [field]: (request.body[field] || []).filter((_, i) => i !== index) });
-  const updatePathVar = (index, key, value) => updateRequest({ pathVariables: (request.pathVariables || []).map((v, i) => i === index ? { ...v, [key]: value } : v) });
+  const updatePathVar = (index, key, value) => updateRequest({ path_variables: (request.path_variables || []).map((v, i) => i === index ? { ...v, [key]: value } : v) });
 
   const activeParamCount = (request.params || []).filter(p => p.enabled && p.key).length;
   const activeHeaderCount = (request.headers || []).filter(h => h.enabled && h.key).length;
-  const pathVarCount = (request.pathVariables || []).filter(v => v.key).length;
+  const pathVarCount = (request.path_variables || []).filter(v => v.key).length;
 
   const tabs = [
     { id: 'params', label: 'Params', badge: activeParamCount + pathVarCount },
     { id: 'auth', label: 'Authorization' },
     { id: 'headers', label: 'Headers', badge: activeHeaderCount },
     { id: 'body', label: 'Body' },
-    { id: 'scripts', label: 'Scripts' },
-    { id: 'settings', label: 'Settings' },
+    { id: 'scripts', label: 'Scripts', disabled: true, tooltip: 'Scripts execution is coming in a future release.' },
+    { id: 'settings', label: 'Settings', disabled: true, tooltip: 'Per-request settings are coming in a future release.' },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', backgroundColor: '#1e1e1e' }}>
+      {/* Fixed-position coming-soon tooltip */}
+      {comingSoonTip && (
+        <div style={{ position: 'fixed', left: comingSoonTip.x, top: comingSoonTip.y, zIndex: 99999, pointerEvents: 'none', background: 'linear-gradient(135deg,#1e1e1e,#181818)', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', width: 210, boxShadow: '0 8px 24px rgba(0,0,0,.7)' }}>
+          <div style={{ color: '#FF6C37', fontSize: 11, fontWeight: 700, marginBottom: 3 }}>🚀 Coming Soon</div>
+          <div style={{ color: '#666', fontSize: 11, lineHeight: 1.5 }}>{comingSoonTip.text}</div>
+        </div>
+      )}
       {/* Request Name */}
       <div style={{ padding: '10px 16px 0', borderBottom: '1px solid #2d2d2d' }}>
         <input value={request.name || ''} onChange={e => updateRequest({ name: e.target.value })} placeholder="Request Name"
@@ -184,7 +192,7 @@ const RequestPanel = ({ request, onRequestChange, onSend, isSending }) => {
           onMouseLeave={e => { if (!isSending) e.currentTarget.style.background = '#FF6C37'; }}
         >{isSending ? 'Sending...' : 'Send'}</button>
 
-        <button style={{ background: 'none', border: '1px solid #3d3d3d', borderRadius: '4px', padding: '8px 14px', color: '#ccc', fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit' }}
+        <button onClick={onSave} style={{ background: 'none', border: '1px solid #3d3d3d', borderRadius: '4px', padding: '8px 14px', color: '#ccc', fontSize: '13px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#FF6C37'; e.currentTarget.style.color = '#FF6C37'; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#3d3d3d'; e.currentTarget.style.color = '#ccc'; }}
         >Save</button>
@@ -193,14 +201,33 @@ const RequestPanel = ({ request, onRequestChange, onSend, isSending }) => {
       {/* Request Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid #2d2d2d', backgroundColor: '#252525', paddingLeft: '16px', flexShrink: 0, overflowX: 'auto' }}>
         {tabs.map(tab => (
-          <button key={tab.id} data-testid={`request-tab-${tab.id}`} onClick={() => setActiveTab(tab.id)}
-            style={{ background: 'none', border: 'none', borderBottom: activeTab === tab.id ? '2px solid #FF6C37' : '2px solid transparent', padding: '8px 14px', color: activeTab === tab.id ? '#FF6C37' : '#aaa', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transition: 'color 0.15s', whiteSpace: 'nowrap', fontFamily: 'inherit' }}
-            onMouseEnter={e => { if (activeTab !== tab.id) e.currentTarget.style.color = '#e0e0e0'; }}
-            onMouseLeave={e => { if (activeTab !== tab.id) e.currentTarget.style.color = '#aaa'; }}
-          >
-            {tab.label}
-            {tab.badge > 0 && <span style={{ background: '#FF6C37', color: '#fff', borderRadius: '8px', padding: '0 5px', fontSize: '10px', fontWeight: '700', minWidth: '16px', textAlign: 'center', lineHeight: '16px' }}>{tab.badge}</span>}
-          </button>
+          tab.disabled ? (
+            <div
+              key={tab.id}
+              onMouseEnter={e => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setComingSoonTip({ x: r.left, y: r.bottom + 6, text: tab.tooltip });
+              }}
+              onMouseLeave={() => setComingSoonTip(null)}
+            >
+              <button
+                disabled
+                style={{ background: 'none', border: 'none', borderBottom: '2px solid transparent', padding: '8px 14px', color: '#484848', fontSize: '12px', cursor: 'not-allowed', display: 'flex', alignItems: 'center', gap: '5px', whiteSpace: 'nowrap', fontFamily: 'inherit', opacity: 0.5, pointerEvents: 'none' }}
+              >
+                {tab.label}
+                <span style={{ fontSize: 9, color: '#555', fontWeight: 600, background: '#2a2a2a', border: '1px solid #333', borderRadius: 4, padding: '1px 5px', marginLeft: 2, letterSpacing: '.03em' }}>SOON</span>
+              </button>
+            </div>
+          ) : (
+            <button key={tab.id} data-testid={`request-tab-${tab.id}`} onClick={() => setActiveTab(tab.id)}
+              style={{ background: 'none', border: 'none', borderBottom: activeTab === tab.id ? '2px solid #FF6C37' : '2px solid transparent', padding: '8px 14px', color: activeTab === tab.id ? '#FF6C37' : '#aaa', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transition: 'color 0.15s', whiteSpace: 'nowrap', fontFamily: 'inherit' }}
+              onMouseEnter={e => { if (activeTab !== tab.id) e.currentTarget.style.color = '#e0e0e0'; }}
+              onMouseLeave={e => { if (activeTab !== tab.id) e.currentTarget.style.color = '#aaa'; }}
+            >
+              {tab.label}
+              {tab.badge > 0 && <span style={{ background: '#FF6C37', color: '#fff', borderRadius: '8px', padding: '0 5px', fontSize: '10px', fontWeight: '700', minWidth: '16px', textAlign: 'center', lineHeight: '16px' }}>{tab.badge}</span>}
+            </button>
+          )
         ))}
       </div>
 
@@ -222,7 +249,7 @@ const RequestPanel = ({ request, onRequestChange, onSend, isSending }) => {
                   <div /><div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Variable</div>
                   <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Value</div><div />
                 </div>
-                {(request.pathVariables || []).map((pv, i) => (
+                {(request.path_variables || []).map((pv, i) => (
                   <div key={pv.key} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 28px', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
                     <input type="checkbox" checked={pv.enabled} onChange={e => updatePathVar(i, 'enabled', e.target.checked)} style={{ accentColor: '#FF6C37', width: '14px', height: '14px', margin: '0 auto', cursor: 'pointer' }} />
                     <div style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: '#e8a87c', fontSize: '12px', fontFamily: '"Fira Code", monospace' }}>:{pv.key}</div>
@@ -257,7 +284,7 @@ const RequestPanel = ({ request, onRequestChange, onSend, isSending }) => {
                 </label>
               ))}
               {request.body.type === 'raw' && (
-                <select value={request.body.rawType || 'JSON'} onChange={e => updateBody({ rawType: e.target.value })}
+                <select value={request.body.raw?.type || 'JSON'} onChange={e => updateBody({ raw: { ...request.body.raw, type: e.target.value } })}
                   style={{ background: '#2d2d2d', border: '1px solid #3d3d3d', borderRadius: '4px', padding: '3px 8px', color: '#e0e0e0', fontSize: '12px', cursor: 'pointer', outline: 'none', marginLeft: 'auto', fontFamily: 'inherit' }}>
                   {['JSON', 'Text', 'JavaScript', 'HTML', 'XML'].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -266,21 +293,21 @@ const RequestPanel = ({ request, onRequestChange, onSend, isSending }) => {
             {/* Body content */}
             {request.body.type === 'none' && <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: '12px' }}>This request does not have a body</div>}
             {request.body.type === 'raw' && (
-              <textarea value={request.body.raw || ''} onChange={e => updateBody({ raw: e.target.value })}
-                placeholder={RAW_PLACEHOLDERS[request.body.rawType || 'JSON'] || ''}
+              <textarea value={request.body.raw?.value || ''} onChange={e => updateBody({ raw: { ...request.body.raw, value: e.target.value } })}
+                placeholder={RAW_PLACEHOLDERS[request.body.raw?.type || 'JSON'] || ''}
                 style={{ flex: 1, width: '100%', background: '#1a1a1a', border: 'none', borderTop: '1px solid #2a2a2a', padding: '12px 16px', color: '#e0e0e0', fontSize: '12px', fontFamily: '"Fira Code", "Consolas", monospace', resize: 'none', outline: 'none', lineHeight: '1.6', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
                 onFocus={e => { e.target.style.borderTop = '1px solid #FF6C37'; }} onBlur={e => { e.target.style.borderTop = '1px solid #2a2a2a'; }}
               />
             )}
             {request.body.type === 'form-data' && (
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-                <FormDataTable rows={request.body.formData || []} onAdd={() => addBodyRow('formData')} onRemove={i => removeBodyRow('formData', i)} onUpdate={(i, k, v) => updateBodyRow('formData', i, k, v)} />
+                <FormDataTable rows={request.body.form_data || []} onAdd={() => addBodyRow('form_data')} onRemove={i => removeBodyRow('form_data', i)} onUpdate={(i, k, v) => updateBodyRow('form_data', i, k, v)} />
               </div>
             )}
             {request.body.type === 'x-www-form-urlencoded' && (
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-                <KeyValueTable rows={request.body.urlEncoded || []} onAdd={() => addBodyRow('urlEncoded')} onRemove={i => removeBodyRow('urlEncoded', i)}
-                  onUpdate={(i, k, v) => updateBodyRow('urlEncoded', i, k, v)} keyPlaceholder="Key" valuePlaceholder="Value" title="URL Encoded" />
+                <KeyValueTable rows={request.body.url_encoded || []} onAdd={() => addBodyRow('url_encoded')} onRemove={i => removeBodyRow('url_encoded', i)}
+                  onUpdate={(i, k, v) => updateBodyRow('url_encoded', i, k, v)} keyPlaceholder="Key" valuePlaceholder="Value" title="URL Encoded" />
               </div>
             )}
             {request.body.type === 'binary' && (

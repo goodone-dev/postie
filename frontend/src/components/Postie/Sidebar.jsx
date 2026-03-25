@@ -9,13 +9,14 @@ import {
   ListCollections, GetCollection, CreateCollection, RenameCollection, UpdateCollectionFavorite,
   DeleteCollection, DuplicateCollection, MoveCollection,
   CreateEnvironment, UpdateEnvironment, DeleteEnvironment, DuplicateEnvironment,
-  CreateFolder, RenameFolder, DeleteFolder, DuplicateFolder
+  CreateFolder, RenameFolder, DeleteFolder, DuplicateFolder,
+  CreateRequest, RenameRequest, UpdateRequest, DeleteRequest, DuplicateRequest
 } from '../../wailsjs/go/main/App';
 
 const uid = () => `id-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 const cloneItem = (item) => ({
-  ...item, id: uid(), name: `${item.name} (copy)`,
+  ...item, id: uid(), name: `${item.name}`,
   ...(item.items ? { items: item.items.map(cloneItem) } : {}),
   ...(item.examples ? { examples: item.examples.map(ex => ({ ...ex, id: uid() })) } : {})
 });
@@ -30,35 +31,73 @@ const normalizeItem = (node) => {
     ...node,
     headers: node.headers || [],
     params: node.params || [],
-    pathVariables: node.pathVariables || [],
+    path_variables: node.path_variables || [],
     examples: node.examples || [],
-    body: node.body || { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] },
+    body: node.body || { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] },
     auth: node.auth || { type: 'none' },
   };
 };
 
 /* ─── CONFIRM MODAL ──────────────────────────────────────────── */
-const ConfirmModal = ({ title, message, onConfirm, onClose }) => (
-  <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-    onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <div style={{ width: 340, background: '#1e1e1e', border: '1px solid #3d3d3d', borderRadius: 8, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.7)' }}>
-      <div style={{ color: '#e0e0e0', fontWeight: 600, fontSize: 14, marginBottom: 10 }}>{title}</div>
-      <div style={{ color: '#888', fontSize: 12, lineHeight: 1.6, marginBottom: 18 }}>{message}</div>
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button onClick={onClose}
-          style={{ background: 'none', border: '1px solid #3d3d3d', borderRadius: 4, padding: '6px 16px', color: '#ccc', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .15s' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#666'; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = '#3d3d3d'; }}
-        >Cancel</button>
-        <button onClick={() => { onConfirm(); onClose(); }}
-          style={{ background: '#f93e3e', border: 'none', borderRadius: 4, padding: '6px 16px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'background .15s' }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#d93030'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#f93e3e'; }}
-        >Delete</button>
+const ConfirmModal = ({ title, message, onConfirm, onClose }) => {
+  const [hovered, setHovered] = React.useState(null);
+
+  React.useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ width: 380, background: 'linear-gradient(145deg,#1a1a1a,#161616)', border: '1px solid #2a2a2a', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04)', overflow: 'hidden' }}>
+        {/* Red accent bar */}
+        <div style={{ height: 3, background: 'linear-gradient(90deg,#f93e3e,#ff6b35)' }} />
+
+        {/* Header */}
+        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #1f1f1f', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(249,62,62,0.1)', border: '1px solid rgba(249,62,62,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f93e3e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+          </div>
+          <div>
+            <div style={{ color: '#f0f0f0', fontWeight: 700, fontSize: 14, letterSpacing: '-.01em' }}>{title}</div>
+            <div style={{ color: '#505050', fontSize: 11, marginTop: 2 }}>This action cannot be undone</div>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '14px 20px 16px' }}>
+          <div style={{ color: '#777', fontSize: 13, lineHeight: 1.65 }}>{message}</div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '12px 20px 18px', borderTop: '1px solid #1f1f1f', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            onMouseEnter={() => setHovered('cancel')} onMouseLeave={() => setHovered(null)}
+            style={{ background: hovered === 'cancel' ? '#252525' : 'none', border: '1px solid #2d2d2d', borderRadius: 6, padding: '6px 16px', color: '#aaa', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
+          >Cancel</button>
+          <button
+            onClick={() => { onConfirm(); onClose(); }}
+            onMouseEnter={() => setHovered('delete')} onMouseLeave={() => setHovered(null)}
+            style={{ background: hovered === 'delete' ? '#d43030' : '#f93e3e', border: 'none', borderRadius: 6, padding: '6px 18px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'background .15s', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            </svg>
+            Delete
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /* ─── MOVE TO WORKSPACE MODAL ────────────────────────────────── */
 const MoveModal = ({ collection, workspaces, currentWorkspaceId, onMove, onClose }) => {
@@ -312,8 +351,20 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
   );
 };
 
+/* ─── PURE HELPERS ──────────────────────────────────────────────── */
+const preserveOpenState = (oldItems, newItems) => {
+  if (!oldItems || !newItems) return newItems;
+  return newItems.map(newItem => {
+    const oldItem = oldItems.find(it => it.id === newItem.id);
+    if (oldItem && newItem.type === 'folder') {
+      return { ...newItem, isOpen: oldItem.isOpen, items: preserveOpenState(oldItem.items, newItem.items) };
+    }
+    return newItem;
+  });
+};
+
 /* ─── SIDEBAR ─────────────────────────────────────────────────── */
-const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv, environments, setEnvironments, activeTabId, activeWorkspaceId, workspaces }) => {
+const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv, environments, setEnvironments, activeTabId, activeWorkspaceId, workspaces, onRequestRenamed, onRequestDeleted, sidebarSignal }) => {
   const [activeTab, setActiveTab] = useState('collections');
   // collections: backend data merged with local UI state (isOpen, items)
   const [collections, setCollections] = useState([]);
@@ -379,12 +430,14 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
 
   const mapDeepItems = (colId, folId, fn) => {
     const recurse = (items) => items.map(it => {
-      if (it.id === folId) return { ...it, items: fn(it.items) };
+      if (it.id === folId) return { ...it, isOpen: true, items: fn(it.items) };
       if (it.type === 'folder' && it.items) return { ...it, items: recurse(it.items) };
       return it;
     });
     setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: recurse(c.items) }));
   };
+
+
 
   const updateItemById = (colId, targetId, updater) => {
     const recurse = (items) => items.map(it => {
@@ -415,6 +468,60 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     };
     setCollections(prev => prev.map(c => c.id !== colId ? c : { ...c, items: recurse(c.items) }));
   };
+
+  // Sync external changes from App.js tabs to Sidebar state
+  useEffect(() => {
+    if (!sidebarSignal) return;
+    if (sidebarSignal.type === 'rename_request' || sidebarSignal.type === 'update_request') {
+      setCollections(prev => prev.map(c => {
+        const mapItems = (items) => items.map(it => {
+          if (it.id === sidebarSignal.id) return { ...it, name: sidebarSignal.name || it.name, method: sidebarSignal.method || it.method };
+          if (it.items) return { ...it, items: mapItems(it.items) };
+          return it;
+        });
+        return { ...c, items: mapItems(c.items || []) };
+      }));
+    } else if (sidebarSignal.type === 'create_request' && sidebarSignal.collectionId) {
+      GetCollection(sidebarSignal.collectionId).then(res => {
+        if (res) {
+          setCollections(prev => prev.map(c => {
+            if (c.id === sidebarSignal.collectionId) {
+              const normalized = normalizeItem({ ...res, type: 'collection' });
+              let finalItems = preserveOpenState(c.items, normalized.items);
+
+              if (sidebarSignal.folderId) {
+                const forceOpenPathToId = (itemsArray, targetId) => {
+                  const recurse = (arr) => {
+                    let foundInBranch = false;
+                    const newArr = arr.map(it => {
+                      if (it.id === targetId) {
+                        foundInBranch = true;
+                        return { ...it, isOpen: true };
+                      }
+                      if (it.items) {
+                        const sub = recurse(it.items);
+                        if (sub.found) {
+                          foundInBranch = true;
+                          return { ...it, items: sub.arr, isOpen: true };
+                        }
+                      }
+                      return it;
+                    });
+                    return { arr: newArr, found: foundInBranch };
+                  };
+                  return recurse(itemsArray).arr;
+                };
+                finalItems = forceOpenPathToId(finalItems, sidebarSignal.folderId);
+              }
+
+              return { ...normalized, isOpen: true, items: finalItems };
+            }
+            return c;
+          }));
+        }
+      }).catch(console.error);
+    }
+  }, [sidebarSignal]);
 
   const toggleColOpen = (colId) => {
     setCollections(prev => {
@@ -495,8 +602,8 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
       type: 'request', id: uid(), name: it.name || 'Request', method: it.request?.method || 'GET',
       url: (typeof it.request?.url === 'string' ? it.request.url : it.request?.url?.raw) || '',
       headers: (it.request?.header || []).map(h => ({ key: h.key, value: h.value, enabled: !h.disabled })),
-      params: [], pathVariables: [],
-      body: { type: 'none', rawType: 'JSON', raw: it.request?.body?.raw || '', formData: [], urlEncoded: [] },
+      params: [], path_variables: [],
+      body: { type: 'none', raw: { type: 'JSON', value: (it.request?.body?.raw || '') }, form_data: [], url_encoded: [] },
       auth: { type: 'none' }, examples: []
     }));
     if (activeWorkspaceId) {
@@ -546,7 +653,13 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
         },
         {
           icon: <Plus size={12} />, label: 'Add Request',
-          action: () => setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'request', id: uid(), name: 'New Request', method: 'GET', url: '', headers: [], params: [], pathVariables: [], body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] }, auth: { type: 'none' }, examples: [] }] }))
+          action: () => {
+            CreateRequest({ collection_id: col.id, name: 'New Request', method: 'GET', url: '', params: [], path_variables: [], headers: [], auth: { type: 'none' }, body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] } })
+              .then(req => {
+                if (req) setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, normalizeItem({ ...req, type: 'request' })] }));
+              })
+              .catch(console.error);
+          }
         },
         'sep',
         {
@@ -603,12 +716,20 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     e.stopPropagation();
     setCtx({
       x: e.clientX, y: e.clientY, items: [
-        { icon: <Plus size={12} />, label: 'Add Request', action: () => mapDeepItems(col.id, fol.id, items => [...items, { type: 'request', id: uid(), name: 'New Request', method: 'GET', url: '', headers: [], params: [], pathVariables: [], body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] }, auth: { type: 'none' }, examples: [] }]) },
         {
           icon: <FolderPlus size={12} />, label: 'Add Folder', action: () => {
             CreateFolder({ collection_id: col.id, parent_id: fol.id, name: 'New Folder' })
               .then(f => {
                 if (f) mapDeepItems(col.id, fol.id, items => [...items, { type: 'folder', id: f.id, name: f.name, isOpen: true, items: [] }]);
+              })
+              .catch(console.error);
+          }
+        },
+        {
+          icon: <Plus size={12} />, label: 'Add Request', action: () => {
+            CreateRequest({ collection_id: col.id, folder_id: fol.id, name: 'New Request', method: 'GET', url: '', params: [], path_variables: [], headers: [], auth: { type: 'none' }, body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] } })
+              .then(req => {
+                if (req) mapDeepItems(col.id, fol.id, items => [...items, normalizeItem({ ...req, type: 'request' })]);
               })
               .catch(console.error);
           }
@@ -627,7 +748,17 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
           icon: <Copy size={12} />, label: 'Duplicate', action: () => {
             DuplicateFolder(fol.id)
               .then(dup => {
-                if (dup) insertAfterById(col.id, fol.id, cloneItem({ ...fol, id: dup.id, name: dup.name }));
+                if (dup) {
+                  GetCollection(col.id).then(res => {
+                    if (res) setCollections(prev => prev.map(c => {
+                      if (c.id === col.id) {
+                        const normalized = normalizeItem({ ...res, type: 'collection' });
+                        return { ...normalized, isOpen: c.isOpen, items: preserveOpenState(c.items, normalized.items) };
+                      }
+                      return c;
+                    }));
+                  }).catch(console.error);
+                }
               })
               .catch(console.error);
           }
@@ -650,10 +781,34 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     const updateReq = fn => folId ? mapDeepItems(col.id, folId, fn) : mapItems(col.id, fn);
     setCtx({
       x: e.clientX, y: e.clientY, items: [
-        { icon: <Pencil size={12} />, label: 'Rename', action: () => startEdit(req.id, req.name, name => updateReq(items => items.map(it => it.id === req.id ? { ...it, name } : it))) },
-        { icon: <Copy size={12} />, label: 'Duplicate', action: () => updateReq(items => { const idx = items.findIndex(it => it.id === req.id); const arr = [...items]; arr.splice(idx + 1, 0, cloneItem(req)); return arr; }) },
+        {
+          icon: <Pencil size={12} />, label: 'Rename', action: () => startEdit(req.id, req.name, name => {
+            RenameRequest(req.id, { name }).then(updated => {
+              if (updated) {
+                updateReq(items => items.map(it => it.id === req.id ? { ...it, name: updated.name } : it));
+                if (onRequestRenamed) onRequestRenamed(req.id, updated.name);
+              }
+            }).catch(console.error);
+          })
+        },
+        {
+          icon: <Copy size={12} />, label: 'Duplicate', action: () => {
+            DuplicateRequest(req.id).then(dup => {
+              if (dup) updateReq(items => { const idx = items.findIndex(it => it.id === req.id); const arr = [...items]; arr.splice(idx + 1, 0, normalizeItem({ ...dup, type: 'request' })); return arr; });
+            }).catch(console.error);
+          }
+        },
         'sep',
-        { icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({ title: 'Delete Request', message: `Delete "${req.name}"?`, onConfirm: () => updateReq(items => items.filter(it => it.id !== req.id)) }) }
+        {
+          icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({
+            title: 'Delete Request', message: `Delete "${req.name}"?`, onConfirm: () => {
+              DeleteRequest(req.id).then(() => {
+                updateReq(items => items.filter(it => it.id !== req.id));
+                if (onRequestDeleted) onRequestDeleted(req.id);
+              }).catch(console.error);
+            }
+          })
+        }
       ]
     });
   };
@@ -666,7 +821,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     setCtx({
       x: e.clientX, y: e.clientY, items: [
         { icon: <Pencil size={12} />, label: 'Rename', action: () => startEdit(ex.id, ex.name, name => updateEx(exs => exs.map(x => x.id === ex.id ? { ...x, name } : x))) },
-        { icon: <Copy size={12} />, label: 'Duplicate', action: () => updateEx(exs => { const idx = exs.findIndex(x => x.id === ex.id); const arr = [...exs]; arr.splice(idx + 1, 0, { ...ex, id: uid(), name: `${ex.name} (copy)` }); return arr; }) },
+        { icon: <Copy size={12} />, label: 'Duplicate', action: () => updateEx(exs => { const idx = exs.findIndex(x => x.id === ex.id); const arr = [...exs]; arr.splice(idx + 1, 0, { ...ex, id: uid(), name: `${ex.name}` }); return arr; }) },
         'sep',
         { icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({ title: 'Delete Example', message: `Delete "${ex.name}"?`, onConfirm: () => updateEx(exs => exs.filter(x => x.id !== ex.id)) }) }
       ]
@@ -691,7 +846,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
           onClick={() => !isEditing && onSelectRequest(req)}
           onContextMenu={e => { e.preventDefault(); reqMenu(col, req, folId, e); }}
           style={{
-            display: 'flex', alignItems: 'center', padding: `5px 8px 5px ${depth === 0 ? 16 : 28}px`,
+            display: 'flex', alignItems: 'center', padding: `5px 8px 5px ${depth * 12 + 16}px`,
             cursor: 'pointer', gap: 5,
             background: isDragTarget ? 'rgba(255,108,55,0.1)' : activeRequestId === req.id ? 'rgba(255,108,55,0.12)' : 'transparent',
             borderLeft: activeRequestId === req.id ? '2px solid #FF6C37' : '2px solid transparent',
@@ -710,7 +865,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
             <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} />
           ) : (
             <span
-              onDoubleClick={e => { e.stopPropagation(); const fn = items => items.map(it => it.id === req.id ? { ...it, name: inlineEdit?.value || it.name } : it); startEdit(req.id, req.name, name => { folId ? mapDeepItems(col.id, folId, items => items.map(it => it.id === req.id ? { ...it, name } : it)) : mapItems(col.id, items => items.map(it => it.id === req.id ? { ...it, name } : it)); }); }}
+              onDoubleClick={e => { e.stopPropagation(); startEdit(req.id, req.name, name => { RenameRequest(req.id, { name }).then(updated => { if (updated) { const fn = items => items.map(it => it.id === req.id ? { ...it, name: updated.name } : it); folId ? mapDeepItems(col.id, folId, fn) : mapItems(col.id, fn); if (onRequestRenamed) onRequestRenamed(req.id, updated.name); } }).catch(console.error); }); }}
               style={{ color: '#ccc', fontSize: 12, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
             >{req.name}</span>
           )}
@@ -723,13 +878,13 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
           <div key={ex.id}
             onContextMenu={e => { e.preventDefault(); exMenu(col, req, folId, ex, e); }}
             onClick={() => onSelectRequest({ ...req, name: ex.name, _exampleId: ex.id })}
-            style={{ display: 'flex', alignItems: 'center', padding: `4px 8px 4px ${depth === 0 ? 36 : 48}px`, cursor: 'pointer', gap: 6, transition: 'background .1s' }}
+            style={{ display: 'flex', alignItems: 'center', padding: `4px 8px 4px ${depth * 12 + 36}px`, cursor: 'pointer', gap: 6, transition: 'background .1s' }}
             onMouseEnter={e => { e.currentTarget.style.background = '#2d2d2d'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
           >
             <span style={{ fontSize: 10, fontWeight: 600, color: ex.status >= 200 && ex.status < 300 ? '#49cc90' : '#f93e3e', minWidth: 34 }}>{ex.status || '—'}</span>
             {inlineEdit?.id === ex.id ? (
-              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} extraStyle={{ fontSize: 11 }} />
+              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} />
             ) : (
               <span
                 onDoubleClick={e => { e.stopPropagation(); startEdit(ex.id, ex.name, name => { const fn = items => items.map(it => it.id === req.id ? { ...it, examples: it.examples.map(x => x.id === ex.id ? { ...x, name } : x) } : it); folId ? mapDeepItems(col.id, folId, fn) : mapItems(col.id, fn); }); }}
@@ -773,12 +928,12 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
               {item.isOpen ? <FolderOpen size={12} /> : <Folder size={12} />}
             </span>
             {isEditing ? (
-              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} extraStyle={{ fontSize: 11, height: '16px', lineHeight: '16px' }} />
+              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} />
             ) : (
               <span
                 onClick={() => toggleFolOpen(col.id, item.id)}
-                onDoubleClick={e => { e.stopPropagation(); startEdit(item.id, item.name, name => mapItems(col.id, items => items.map(it => it.id === item.id ? { ...it, name } : it))); }}
-                style={{ color: '#ddd', fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+                onDoubleClick={e => { e.stopPropagation(); startEdit(item.id, item.name, name => { RenameFolder(item.id, { name }).then(updated => { if (updated) updateItemById(col.id, item.id, it => ({ ...it, name: updated.name })); }).catch(console.error); }); }}
+                style={{ color: '#ddd', fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
               >{item.name}</span>
             )}
             <span style={{ color: '#555', fontSize: 10, flexShrink: 0 }}>{item.items?.length || 0}</span>
@@ -981,7 +1136,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
                 { id: 'h4', method: 'GET', url: 'https://api.github.com/users/octocat', time: '1 hr ago' },
               ].map(item => (
                 <div key={item.id}
-                  onClick={() => onSelectRequest({ id: item.id, name: item.url, method: item.method, url: item.url, headers: [], params: [], pathVariables: [], body: { type: 'none', rawType: 'JSON', raw: '', formData: [], urlEncoded: [] }, auth: { type: 'none' }, examples: [] })}
+                  onClick={() => onSelectRequest({ id: item.id, name: item.url, method: item.method, url: item.url, headers: [], params: [], path_variables: [], body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] }, auth: { type: 'none' }, examples: [] })}
                   style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid #2d2d2d', transition: 'background .1s' }}
                   onMouseEnter={e => { e.currentTarget.style.background = '#333'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
