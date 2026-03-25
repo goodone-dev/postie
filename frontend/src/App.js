@@ -225,9 +225,7 @@ const DeleteWorkspaceModal = ({ ws, onClose, onConfirm }) => {
             onMouseEnter={() => setHovered('delete')} onMouseLeave={() => setHovered(null)}
             style={{ background: hovered === 'delete' ? '#d43030' : '#f93e3e', border: 'none', borderRadius: 6, padding: '6px 18px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'background .15s', display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-            </svg>
+            <Trash2 size={12} style={{ marginBottom: 2 }} />
             Delete
           </button>
         </div>
@@ -821,7 +819,7 @@ function App() {
                             onMouseEnter={e => { e.currentTarget.style.color = '#f93e3e'; }}
                             onMouseLeave={e => { e.currentTarget.style.color = '#555'; }}
                           >
-                            <Trash2 size={11} />
+                            <Trash2 size={12} />
                           </button>
                         )}
                       </div>

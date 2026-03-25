@@ -88,9 +88,7 @@ const ConfirmModal = ({ title, message, onConfirm, onClose }) => {
             onMouseEnter={() => setHovered('delete')} onMouseLeave={() => setHovered(null)}
             style={{ background: hovered === 'delete' ? '#d43030' : '#f93e3e', border: 'none', borderRadius: 6, padding: '6px 18px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'background .15s', display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-            </svg>
+            <Trash2 size={12} style={{ marginBottom: 2 }} />
             Delete
           </button>
         </div>
@@ -102,44 +100,126 @@ const ConfirmModal = ({ title, message, onConfirm, onClose }) => {
 /* ─── MOVE TO WORKSPACE MODAL ────────────────────────────────── */
 const MoveModal = ({ collection, workspaces, currentWorkspaceId, onMove, onClose }) => {
   const [selectedId, setSelectedId] = useState('');
+  const [hoveredId, setHoveredId] = useState(null);
   const others = workspaces.filter(w => w.id !== currentWorkspaceId);
+
+  React.useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ width: 360, background: '#1e1e1e', border: '1px solid #3d3d3d', borderRadius: 8, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.7)' }}>
-        <div style={{ color: '#e0e0e0', fontWeight: 600, fontSize: 14, marginBottom: 6 }}>Move to Another Workspace</div>
-        <div style={{ color: '#888', fontSize: 12, marginBottom: 16 }}>Move <b style={{ color: '#e8a87c' }}>«{collection.name}»</b> to:</div>
-        {others.length === 0 ? (
-          <div style={{ color: '#666', fontSize: 12, padding: '12px 0' }}>No other workspaces available.</div>
-        ) : (
-          <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #2d2d2d', borderRadius: 6, marginBottom: 16 }}>
-            {others.map(ws => (
-              <div key={ws.id}
-                onClick={() => setSelectedId(ws.id)}
-                style={{ padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, background: selectedId === ws.id ? 'rgba(255,108,55,0.12)' : 'transparent', borderLeft: selectedId === ws.id ? '2px solid #FF6C37' : '2px solid transparent', transition: 'background .1s' }}
-                onMouseEnter={e => { if (selectedId !== ws.id) e.currentTarget.style.background = '#2a2a2a'; }}
-                onMouseLeave={e => { if (selectedId !== ws.id) e.currentTarget.style.background = 'transparent'; }}
-              >
-                <div style={{ width: 28, height: 28, borderRadius: 6, background: selectedId === ws.id ? '#FF6C37' : '#2d2d2d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <span style={{ color: '#fff', fontSize: 11, fontWeight: 700 }}>{ws.name.charAt(0)}</span>
-                </div>
-                <span style={{ color: '#e0e0e0', fontSize: 12 }}>{ws.name}</span>
-              </div>
-            ))}
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ width: 390, background: 'linear-gradient(145deg,#1a1a1a,#161616)', border: '1px solid #2a2a2a', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04)', overflow: 'hidden' }}>
+
+        {/* Accent bar */}
+        <div style={{ height: 3, background: 'linear-gradient(90deg,#FF6C37,#f0a04b)' }} />
+
+        {/* Header */}
+        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #1f1f1f', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(255,108,55,0.1)', border: '1px solid rgba(255,108,55,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <ArrowRight size={16} style={{ color: '#FF6C37' }} />
           </div>
-        )}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose}
-            style={{ background: 'none', border: '1px solid #3d3d3d', borderRadius: 4, padding: '6px 16px', color: '#ccc', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .15s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#666'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#3d3d3d'; }}
-          >Cancel</button>
-          <button onClick={() => { if (selectedId) { onMove(selectedId); onClose(); } }}
+          <div>
+            <div style={{ color: '#f0f0f0', fontWeight: 700, fontSize: 14, letterSpacing: '-.01em' }}>Move to Another Workspace</div>
+            <div style={{ color: '#505050', fontSize: 11, marginTop: 2 }}>
+              Select a destination for <span style={{ color: '#e8916a', fontWeight: 600 }}>"{collection.name}"</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '14px 20px 16px' }}>
+          {others.length === 0 ? (
+            <div style={{ color: '#555', fontSize: 12, padding: '20px 0', textAlign: 'center', letterSpacing: '.01em' }}>
+              No other workspaces available.
+            </div>
+          ) : (
+            <div style={{ maxHeight: 210, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {others.map(ws => {
+                const isSelected = selectedId === ws.id;
+                const isHovered = hoveredId === ws.id;
+                return (
+                  <div
+                    key={ws.id}
+                    onClick={() => setSelectedId(ws.id)}
+                    onMouseEnter={() => setHoveredId(ws.id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                    style={{
+                      padding: '9px 12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 11,
+                      borderRadius: 8,
+                      border: `1px solid ${isSelected ? 'rgba(255,108,55,0.35)' : 'transparent'}`,
+                      background: isSelected
+                        ? 'rgba(255,108,55,0.1)'
+                        : isHovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+                      transition: 'all .15s',
+                    }}
+                  >
+                    <div style={{
+                      width: 30, height: 30, borderRadius: 7, flexShrink: 0,
+                      background: isSelected ? 'linear-gradient(135deg,#FF6C37,#f0a04b)' : '#252525',
+                      border: `1px solid ${isSelected ? 'rgba(255,108,55,0.4)' : '#333'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all .15s',
+                      boxShadow: isSelected ? '0 4px 12px rgba(255,108,55,0.3)' : 'none',
+                    }}>
+                      <span style={{ color: isSelected ? '#fff' : '#888', fontSize: 11, fontWeight: 700 }}>
+                        {ws.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <span style={{ color: isSelected ? '#f0f0f0' : '#aaa', fontSize: 12, fontWeight: isSelected ? 600 : 400, transition: 'color .15s', flex: 1 }}>
+                      {ws.name}
+                    </span>
+                    {isSelected && (
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#FF6C37" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '12px 20px 18px', borderTop: '1px solid #1f1f1f', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: '1px solid #2d2d2d', borderRadius: 6, padding: '6px 16px', color: '#aaa', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#252525'; e.currentTarget.style.borderColor = '#3d3d3d'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.borderColor = '#2d2d2d'; }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => { if (selectedId) { onMove(selectedId); onClose(); } }}
             disabled={!selectedId}
-            style={{ background: selectedId ? '#FF6C37' : '#555', border: 'none', borderRadius: 4, padding: '6px 16px', color: '#fff', fontSize: 12, cursor: selectedId ? 'pointer' : 'not-allowed', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, transition: 'background .15s' }}
-            onMouseEnter={e => { if (selectedId) e.currentTarget.style.background = '#e55a28'; }}
-            onMouseLeave={e => { if (selectedId) e.currentTarget.style.background = '#FF6C37'; }}
-          ><ArrowRight size={13} />Move</button>
+            style={{
+              background: selectedId ? 'linear-gradient(135deg,#FF6C37,#e55a28)' : '#252525',
+              border: `1px solid ${selectedId ? 'rgba(255,108,55,0.4)' : '#333'}`,
+              borderRadius: 6, padding: '6px 18px',
+              color: selectedId ? '#fff' : '#444',
+              fontSize: 12, cursor: selectedId ? 'pointer' : 'not-allowed',
+              fontFamily: 'inherit', fontWeight: 600,
+              display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'all .15s',
+              boxShadow: selectedId ? '0 4px 14px rgba(255,108,55,0.25)' : 'none',
+            }}
+            onMouseEnter={e => { if (selectedId) { e.currentTarget.style.background = 'linear-gradient(135deg,#e55a28,#cc4a1e)'; e.currentTarget.style.boxShadow = '0 6px 18px rgba(255,108,55,0.35)'; } }}
+            onMouseLeave={e => { if (selectedId) { e.currentTarget.style.background = 'linear-gradient(135deg,#FF6C37,#e55a28)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(255,108,55,0.25)'; } }}
+          >
+            <ArrowRight size={13} />
+            Move
+          </button>
         </div>
       </div>
     </div>
