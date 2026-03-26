@@ -705,7 +705,7 @@ function App() {
           onConfirm={() => {
             const { ws } = confirmDelWorkspace;
             setConfirmDelWorkspace(null);
-            DeleteWorkspace(ws.id).then(() => {
+            DeleteWorkspace(ws.id, ws.name).then(() => {
               if (ws.id === activeWorkspaceId) setActiveWorkspaceId(workspaces.find(w => w.id !== ws.id)?.id || '');
               setWorkspaces(prev => prev.filter(w => w.id !== ws.id));
               setWorkspaceDropdownOpen(false);

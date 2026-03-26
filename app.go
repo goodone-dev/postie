@@ -7,6 +7,7 @@ import (
 	"github.com/goodone-dev/postie/internal/domain/collection"
 	"github.com/goodone-dev/postie/internal/domain/environment"
 	"github.com/goodone-dev/postie/internal/domain/workspace"
+	"github.com/goodone-dev/postie/internal/infrastructure/logger"
 	"github.com/google/uuid"
 )
 
@@ -32,7 +33,14 @@ func (a *App) startup(ctx context.Context) {
 // ── Workspace ────────────────────────────────────────────────────────────────
 
 func (a *App) CreateWorkspace(payload workspace.CreateWorkspaceRequest) (*workspace.WorkspaceResponse, error) {
-	return a.workspaceUsecase.Create(a.ctx, payload)
+	ws, err := a.workspaceUsecase.Create(a.ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Workspace '%s' created", ws.Name).Write()
+
+	return ws, nil
 }
 
 func (a *App) GetWorkspace(id string) (*workspace.WorkspaceResponse, error) {
@@ -40,7 +48,15 @@ func (a *App) GetWorkspace(id string) (*workspace.WorkspaceResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.workspaceUsecase.Get(a.ctx, uid)
+
+	ws, err := a.workspaceUsecase.Get(a.ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Workspace '%s' found", ws.Name).Write()
+
+	return ws, nil
 }
 
 func (a *App) RenameWorkspace(id string, name string) (*workspace.WorkspaceResponse, error) {
@@ -48,19 +64,42 @@ func (a *App) RenameWorkspace(id string, name string) (*workspace.WorkspaceRespo
 	if err != nil {
 		return nil, err
 	}
-	return a.workspaceUsecase.Rename(a.ctx, uid, name)
+
+	ws, err := a.workspaceUsecase.Rename(a.ctx, uid, name)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Workspace '%s' renamed", ws.Name).Write()
+
+	return ws, nil
 }
 
-func (a *App) DeleteWorkspace(id string) error {
+func (a *App) DeleteWorkspace(id string, name string) error {
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return err
 	}
-	return a.workspaceUsecase.Delete(a.ctx, uid)
+
+	err = a.workspaceUsecase.Delete(a.ctx, uid)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf(a.ctx, "Workspace '%s' deleted", name).Write()
+
+	return nil
 }
 
 func (a *App) ListWorkspaces() ([]workspace.WorkspaceResponse, error) {
-	return a.workspaceUsecase.List(a.ctx)
+	ws, err := a.workspaceUsecase.List(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debug(a.ctx, "Workspaces listed").Write()
+
+	return ws, nil
 }
 
 // ── Collection ───────────────────────────────────────────────────────────────
@@ -70,7 +109,15 @@ func (a *App) ListCollections(workspaceID string) ([]collection.CollectionRespon
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.List(a.ctx, uid)
+
+	collections, err := a.collectionUsecase.List(a.ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debug(a.ctx, "Collections listed").Write()
+
+	return collections, nil
 }
 
 func (a *App) GetCollection(id string) (*collection.CollectionResponse, error) {
@@ -78,11 +125,26 @@ func (a *App) GetCollection(id string) (*collection.CollectionResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.Get(a.ctx, uid)
+
+	collection, err := a.collectionUsecase.Get(a.ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Collection '%s' found", collection.Name).Write()
+
+	return collection, nil
 }
 
 func (a *App) CreateCollection(payload collection.CreateCollectionRequest) (*collection.CollectionResponse, error) {
-	return a.collectionUsecase.Create(a.ctx, payload)
+	collection, err := a.collectionUsecase.Create(a.ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Collection '%s' created", collection.Name).Write()
+
+	return collection, nil
 }
 
 func (a *App) RenameCollection(id string, name string) (*collection.CollectionResponse, error) {
@@ -90,7 +152,15 @@ func (a *App) RenameCollection(id string, name string) (*collection.CollectionRe
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.Rename(a.ctx, uid, name)
+
+	collection, err := a.collectionUsecase.Rename(a.ctx, uid, name)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Collection '%s' renamed", collection.Name).Write()
+
+	return collection, nil
 }
 
 func (a *App) UpdateCollectionFavorite(id string, isFavorite bool) (*collection.CollectionResponse, error) {
@@ -98,15 +168,35 @@ func (a *App) UpdateCollectionFavorite(id string, isFavorite bool) (*collection.
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.UpdateFavorite(a.ctx, uid, isFavorite)
+
+	collection, err := a.collectionUsecase.UpdateFavorite(a.ctx, uid, isFavorite)
+	if err != nil {
+		return nil, err
+	}
+
+	if isFavorite {
+		logger.Debugf(a.ctx, "Collection '%s' favorited", collection.Name).Write()
+	} else {
+		logger.Debugf(a.ctx, "Collection '%s' unfavorited", collection.Name).Write()
+	}
+
+	return collection, nil
 }
 
-func (a *App) DeleteCollection(id string) error {
+func (a *App) DeleteCollection(id string, name string) error {
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return err
 	}
-	return a.collectionUsecase.Delete(a.ctx, uid)
+
+	err = a.collectionUsecase.Delete(a.ctx, uid)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf(a.ctx, "Collection '%s' deleted", name).Write()
+
+	return nil
 }
 
 func (a *App) DuplicateCollection(id string) (*collection.CollectionResponse, error) {
@@ -114,7 +204,15 @@ func (a *App) DuplicateCollection(id string) (*collection.CollectionResponse, er
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.Duplicate(a.ctx, uid)
+
+	collection, err := a.collectionUsecase.Duplicate(a.ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Collection '%s' duplicated", collection.Name).Write()
+
+	return collection, nil
 }
 
 func (a *App) MoveCollection(id string, payload collection.MoveCollectionRequest) (*collection.CollectionResponse, error) {
@@ -122,13 +220,28 @@ func (a *App) MoveCollection(id string, payload collection.MoveCollectionRequest
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.Move(a.ctx, uid, payload)
+
+	collection, err := a.collectionUsecase.Move(a.ctx, uid, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Collection '%s' moved", collection.Name).Write()
+
+	return collection, nil
 }
 
 // ── Folder ───────────────────────────────────────────────────────────────
 
 func (a *App) CreateFolder(payload collection.CreateFolderRequest) (*collection.FolderResponse, error) {
-	return a.collectionUsecase.CreateFolder(a.ctx, payload)
+	folder, err := a.collectionUsecase.CreateFolder(a.ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Folder '%s' created", folder.Name).Write()
+
+	return folder, nil
 }
 
 func (a *App) RenameFolder(id string, payload collection.RenameFolderRequest) (*collection.FolderResponse, error) {
@@ -136,15 +249,31 @@ func (a *App) RenameFolder(id string, payload collection.RenameFolderRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.RenameFolder(a.ctx, uid, payload)
+
+	folder, err := a.collectionUsecase.RenameFolder(a.ctx, uid, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Folder '%s' renamed", folder.Name).Write()
+
+	return folder, nil
 }
 
-func (a *App) DeleteFolder(id string) error {
+func (a *App) DeleteFolder(id string, name string) error {
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return err
 	}
-	return a.collectionUsecase.DeleteFolder(a.ctx, uid)
+
+	err = a.collectionUsecase.DeleteFolder(a.ctx, uid)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf(a.ctx, "Folder '%s' deleted", name).Write()
+
+	return nil
 }
 
 func (a *App) DuplicateFolder(id string) (*collection.FolderResponse, error) {
@@ -152,7 +281,15 @@ func (a *App) DuplicateFolder(id string) (*collection.FolderResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.DuplicateFolder(a.ctx, uid)
+
+	folder, err := a.collectionUsecase.DuplicateFolder(a.ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Folder '%s' duplicated", folder.Name).Write()
+
+	return folder, nil
 }
 
 // ── Request ───────────────────────────────────────────────────────────────
@@ -193,6 +330,8 @@ func (a *App) SendRequest(payload ProxyPayload) (*ProxyResponse, error) {
 		}
 	}
 
+	logger.Debugf(a.ctx, "Request '%s %s' sent", payload.Method, payload.URL).Write()
+
 	return &ProxyResponse{
 		Status:     resp.StatusCode(),
 		StatusText: resp.Status(),
@@ -202,7 +341,14 @@ func (a *App) SendRequest(payload ProxyPayload) (*ProxyResponse, error) {
 }
 
 func (a *App) CreateRequest(payload collection.CreateRequestRequest) (*collection.RequestResponse, error) {
-	return a.collectionUsecase.CreateRequest(a.ctx, payload)
+	request, err := a.collectionUsecase.CreateRequest(a.ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Request '%s %s' created", request.Method, request.Name).Write()
+
+	return request, nil
 }
 
 func (a *App) GetRequest(id string) (*collection.RequestResponse, error) {
@@ -210,7 +356,15 @@ func (a *App) GetRequest(id string) (*collection.RequestResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.GetRequest(a.ctx, uid)
+
+	request, err := a.collectionUsecase.GetRequest(a.ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Request '%s %s' found", request.Method, request.Name).Write()
+
+	return request, nil
 }
 
 func (a *App) RenameRequest(id string, payload collection.RenameRequestRequest) (*collection.RequestResponse, error) {
@@ -218,7 +372,15 @@ func (a *App) RenameRequest(id string, payload collection.RenameRequestRequest) 
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.RenameRequest(a.ctx, uid, payload)
+
+	request, err := a.collectionUsecase.RenameRequest(a.ctx, uid, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Request '%s %s' renamed", request.Method, request.Name).Write()
+
+	return request, nil
 }
 
 func (a *App) UpdateRequest(id string, payload collection.UpdateRequestRequest) (*collection.RequestResponse, error) {
@@ -226,15 +388,31 @@ func (a *App) UpdateRequest(id string, payload collection.UpdateRequestRequest) 
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.UpdateRequest(a.ctx, uid, payload)
+
+	request, err := a.collectionUsecase.UpdateRequest(a.ctx, uid, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Request '%s %s' updated", request.Method, request.Name).Write()
+
+	return request, nil
 }
 
-func (a *App) DeleteRequest(id string) error {
+func (a *App) DeleteRequest(id string, method string, name string) error {
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return err
 	}
-	return a.collectionUsecase.DeleteRequest(a.ctx, uid)
+
+	err = a.collectionUsecase.DeleteRequest(a.ctx, uid)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf(a.ctx, "Request '%s %s' deleted", method, name).Write()
+
+	return nil
 }
 
 func (a *App) DuplicateRequest(id string) (*collection.RequestResponse, error) {
@@ -242,7 +420,15 @@ func (a *App) DuplicateRequest(id string) (*collection.RequestResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	return a.collectionUsecase.DuplicateRequest(a.ctx, uid)
+
+	request, err := a.collectionUsecase.DuplicateRequest(a.ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Request '%s %s' duplicated", request.Method, request.Name).Write()
+
+	return request, nil
 }
 
 // ── Environment ───────────────────────────────────────────────────────────────
@@ -252,11 +438,26 @@ func (a *App) ListEnvironments(workspaceID string) ([]environment.EnvironmentRes
 	if err != nil {
 		return nil, err
 	}
-	return a.environmentUsecase.List(a.ctx, uid)
+
+	env, err := a.environmentUsecase.List(a.ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Environments listed").Write()
+
+	return env, nil
 }
 
 func (a *App) CreateEnvironment(payload environment.CreateEnvironmentRequest) (*environment.EnvironmentResponse, error) {
-	return a.environmentUsecase.Create(a.ctx, payload)
+	env, err := a.environmentUsecase.Create(a.ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Environment '%s' created", env.Name).Write()
+
+	return env, nil
 }
 
 func (a *App) UpdateEnvironment(id string, payload environment.UpdateEnvironmentRequest) (*environment.EnvironmentResponse, error) {
@@ -264,7 +465,15 @@ func (a *App) UpdateEnvironment(id string, payload environment.UpdateEnvironment
 	if err != nil {
 		return nil, err
 	}
-	return a.environmentUsecase.Update(a.ctx, uid, payload)
+
+	env, err := a.environmentUsecase.Update(a.ctx, uid, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Environment '%s' updated", env.Name).Write()
+
+	return env, nil
 }
 
 func (a *App) DeleteEnvironment(id string) error {
@@ -272,7 +481,15 @@ func (a *App) DeleteEnvironment(id string) error {
 	if err != nil {
 		return err
 	}
-	return a.environmentUsecase.Delete(a.ctx, uid)
+
+	err = a.environmentUsecase.Delete(a.ctx, uid)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf(a.ctx, "Environment '%s' deleted", id).Write()
+
+	return nil
 }
 
 func (a *App) DuplicateEnvironment(id string) (*environment.EnvironmentResponse, error) {
@@ -280,5 +497,13 @@ func (a *App) DuplicateEnvironment(id string) (*environment.EnvironmentResponse,
 	if err != nil {
 		return nil, err
 	}
-	return a.environmentUsecase.Duplicate(a.ctx, uid)
+
+	env, err := a.environmentUsecase.Duplicate(a.ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Environment '%s' duplicated", env.Name).Write()
+
+	return env, nil
 }

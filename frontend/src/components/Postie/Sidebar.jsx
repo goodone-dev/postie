@@ -776,7 +776,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
             title: 'Delete Collection',
             message: `Delete "${col.name}"? All requests will be permanently lost.`,
             onConfirm: () => {
-              DeleteCollection(col.id)
+              DeleteCollection(col.id, col.name)
                 .then(() => setCollections(prev => prev.filter(c => c.id !== col.id)))
                 .catch(console.error);
             }
@@ -846,7 +846,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
         {
           icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({
             title: 'Delete Folder', message: `Delete "${fol.name}" and its ${fol.items?.length || 0} item(s)?`, onConfirm: () => {
-              DeleteFolder(fol.id)
+              DeleteFolder(fol.id, fol.name)
                 .then(() => deleteItemById(col.id, fol.id))
                 .catch(console.error);
             }
@@ -882,7 +882,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
         {
           icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({
             title: 'Delete Request', message: `Delete "${req.name}"?`, onConfirm: () => {
-              DeleteRequest(req.id).then(() => {
+              DeleteRequest(req.id, req.method, req.name).then(() => {
                 updateReq(items => items.filter(it => it.id !== req.id));
                 if (onRequestDeleted) onRequestDeleted(req.id);
               }).catch(console.error);
