@@ -15,15 +15,15 @@ export function CreateRequest(arg1:collection.CreateRequestRequest):Promise<coll
 
 export function CreateWorkspace(arg1:workspace.CreateWorkspaceRequest):Promise<workspace.WorkspaceResponse>;
 
-export function DeleteCollection(arg1:string):Promise<void>;
+export function DeleteCollection(arg1:string,arg2:string):Promise<void>;
 
 export function DeleteEnvironment(arg1:string):Promise<void>;
 
-export function DeleteFolder(arg1:string):Promise<void>;
+export function DeleteFolder(arg1:string,arg2:string):Promise<void>;
 
-export function DeleteRequest(arg1:string):Promise<void>;
+export function DeleteRequest(arg1:string,arg2:string,arg3:string):Promise<void>;
 
-export function DeleteWorkspace(arg1:string):Promise<void>;
+export function DeleteWorkspace(arg1:string,arg2:string):Promise<void>;
 
 export function DuplicateCollection(arg1:string):Promise<collection.CollectionResponse>;
 

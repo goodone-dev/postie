@@ -22,24 +22,24 @@ export function CreateWorkspace(arg1) {
   return window['go']['main']['App']['CreateWorkspace'](arg1);
 }
 
-export function DeleteCollection(arg1) {
-  return window['go']['main']['App']['DeleteCollection'](arg1);
+export function DeleteCollection(arg1, arg2) {
+  return window['go']['main']['App']['DeleteCollection'](arg1, arg2);
 }
 
 export function DeleteEnvironment(arg1) {
   return window['go']['main']['App']['DeleteEnvironment'](arg1);
 }
 
-export function DeleteFolder(arg1) {
-  return window['go']['main']['App']['DeleteFolder'](arg1);
+export function DeleteFolder(arg1, arg2) {
+  return window['go']['main']['App']['DeleteFolder'](arg1, arg2);
 }
 
-export function DeleteRequest(arg1) {
-  return window['go']['main']['App']['DeleteRequest'](arg1);
+export function DeleteRequest(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeleteRequest'](arg1, arg2, arg3);
 }
 
-export function DeleteWorkspace(arg1) {
-  return window['go']['main']['App']['DeleteWorkspace'](arg1);
+export function DeleteWorkspace(arg1, arg2) {
+  return window['go']['main']['App']['DeleteWorkspace'](arg1, arg2);
 }
 
 export function DuplicateCollection(arg1) {
