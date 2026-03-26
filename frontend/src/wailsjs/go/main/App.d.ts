@@ -35,6 +35,8 @@ export function DuplicateRequest(arg1:string):Promise<collection.RequestResponse
 
 export function GetCollection(arg1:string):Promise<collection.CollectionResponse>;
 
+export function GetRequest(arg1:string):Promise<collection.RequestResponse>;
+
 export function GetWorkspace(arg1:string):Promise<workspace.WorkspaceResponse>;
 
 export function ListCollections(arg1:string):Promise<Array<collection.CollectionResponse>>;

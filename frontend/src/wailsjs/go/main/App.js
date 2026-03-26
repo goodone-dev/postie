@@ -62,6 +62,10 @@ export function GetCollection(arg1) {
   return window['go']['main']['App']['GetCollection'](arg1);
 }
 
+export function GetRequest(arg1) {
+  return window['go']['main']['App']['GetRequest'](arg1);
+}
+
 export function GetWorkspace(arg1) {
   return window['go']['main']['App']['GetWorkspace'](arg1);
 }

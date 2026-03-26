@@ -17,10 +17,17 @@ type MoveCollectionRequest struct {
 }
 
 type CollectionResponse struct {
-	ID         uuid.UUID `json:"id"`
-	Name       string    `json:"name"`
-	Slug       string    `json:"slug"`
-	IsFavorite bool      `json:"is_favorite"`
-	IsOpen     bool      `json:"isOpen"`
-	Items      any       `json:"items"`
+	ID         uuid.UUID        `json:"id"`
+	Name       string           `json:"name"`
+	Slug       string           `json:"slug"`
+	IsFavorite bool             `json:"is_favorite"`
+	Items      []CollectionTree `json:"items"`
+}
+
+type CollectionTree struct {
+	Type   string           `json:"type"`
+	ID     string           `json:"id"`
+	Name   string           `json:"name"`
+	Method *string          `json:"method,omitempty"`
+	Items  []CollectionTree `json:"items,omitempty"`
 }

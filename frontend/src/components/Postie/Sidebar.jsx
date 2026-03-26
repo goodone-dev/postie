@@ -10,7 +10,7 @@ import {
   DeleteCollection, DuplicateCollection, MoveCollection,
   CreateEnvironment, UpdateEnvironment, DeleteEnvironment, DuplicateEnvironment,
   CreateFolder, RenameFolder, DeleteFolder, DuplicateFolder,
-  CreateRequest, RenameRequest, UpdateRequest, DeleteRequest, DuplicateRequest
+  GetRequest, CreateRequest, RenameRequest, UpdateRequest, DeleteRequest, DuplicateRequest
 } from '../../wailsjs/go/main/App';
 
 const uid = () => `id-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -923,7 +923,12 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
           onDragOver={e => onDragOver(e, { id: req.id, type: 'before', colId: col.id, folId })}
           onDrop={e => onDrop(e, { id: req.id, type: 'before', colId: col.id, folId })}
           onDragEnd={onDragEnd}
-          onClick={() => !isEditing && onSelectRequest(req)}
+          onClick={() => {
+            if (isEditing) return;
+            GetRequest(req.id)
+              .then(full => onSelectRequest(full || req))
+              .catch(() => onSelectRequest(req));
+          }}
           onContextMenu={e => { e.preventDefault(); reqMenu(col, req, folId, e); }}
           style={{
             display: 'flex', alignItems: 'center', padding: `5px 8px 5px ${depth * 12 + 16}px`,

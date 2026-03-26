@@ -31,28 +31,26 @@ func toCollectionResponse(c collection.Collection) collection.CollectionResponse
 		Name:       c.Name,
 		Slug:       c.Slug,
 		IsFavorite: c.IsFavorite,
-		IsOpen:     false,
-		Items:      make([]map[string]any, 0),
+		Items:      make([]collection.CollectionTree, 0),
 	}
 }
 
-func (u *collectionUsecase) buildTree(ctx context.Context, colID uuid.UUID) []map[string]any {
+func (u *collectionUsecase) buildTree(ctx context.Context, colID uuid.UUID) []collection.CollectionTree {
 	folders, _ := u.folderRepo.FindAll(ctx, map[string]any{"collection_id": colID})
 	requests, _ := u.requestRepo.FindAll(ctx, map[string]any{"collection_id": colID})
 
-	var recurse func(parentID *uuid.UUID) []map[string]any
-	recurse = func(parentID *uuid.UUID) []map[string]any {
-		items := make([]map[string]any, 0)
+	var recurse func(parentID *uuid.UUID) []collection.CollectionTree
+	recurse = func(parentID *uuid.UUID) []collection.CollectionTree {
+		items := make([]collection.CollectionTree, 0)
 		for _, f := range folders {
 			match := (f.ParentID == nil && parentID == nil) || (f.ParentID != nil && parentID != nil && *f.ParentID == *parentID)
 			if match {
 				idStr := f.ID.String()
-				folderNode := map[string]any{
-					"type":   "folder",
-					"id":     idStr,
-					"name":   f.Name,
-					"isOpen": false,
-					"items":  recurse(&f.ID),
+				folderNode := collection.CollectionTree{
+					Type:  "folder",
+					ID:    idStr,
+					Name:  f.Name,
+					Items: recurse(&f.ID),
 				}
 				items = append(items, folderNode)
 			}
@@ -61,18 +59,11 @@ func (u *collectionUsecase) buildTree(ctx context.Context, colID uuid.UUID) []ma
 			match := (r.FolderID == nil && parentID == nil) || (r.FolderID != nil && parentID != nil && *r.FolderID == *parentID)
 			if match {
 				rr := toRequestResponse(r)
-				reqNode := map[string]any{
-					"type":           "request",
-					"id":             rr.ID.String(),
-					"name":           rr.Name,
-					"method":         rr.Method,
-					"url":            rr.URL,
-					"headers":        rr.Headers,
-					"params":         rr.Params,
-					"path_variables": rr.PathVariables,
-					"body":           rr.Body,
-					"auth":           rr.Auth,
-					// "examples": []any{}, // assuming not used yet
+				reqNode := collection.CollectionTree{
+					Type:   "request",
+					ID:     rr.ID.String(),
+					Name:   rr.Name,
+					Method: &rr.Method,
 				}
 				items = append(items, reqNode)
 			}
@@ -614,6 +605,16 @@ func (u *collectionUsecase) getRequestEntity(ctx context.Context, ID uuid.UUID) 
 	}
 
 	return req, nil
+}
+
+func (u *collectionUsecase) GetRequest(ctx context.Context, ID uuid.UUID) (*collection.RequestResponse, error) {
+	req, err := u.getRequestEntity(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
+
+	res := toRequestResponse(*req)
+	return &res, nil
 }
 
 func (u *collectionUsecase) RenameRequest(ctx context.Context, ID uuid.UUID, payload collection.RenameRequestRequest) (*collection.RequestResponse, error) {

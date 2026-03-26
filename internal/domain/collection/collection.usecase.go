@@ -24,6 +24,7 @@ type CollectionUsecase interface {
 
 	// Request Operations
 	CreateRequest(ctx context.Context, payload CreateRequestRequest) (*RequestResponse, error)
+	GetRequest(ctx context.Context, ID uuid.UUID) (*RequestResponse, error)
 	RenameRequest(ctx context.Context, ID uuid.UUID, payload RenameRequestRequest) (*RequestResponse, error)
 	UpdateRequest(ctx context.Context, ID uuid.UUID, payload UpdateRequestRequest) (*RequestResponse, error)
 	DeleteRequest(ctx context.Context, ID uuid.UUID) error
