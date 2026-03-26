@@ -312,15 +312,20 @@ function App() {
   const [confirmCloseTabs, setConfirmCloseTabs] = useState(null); // { tabIds: [], dirtyTabs: [] }
   const [saveModalRequest, setSaveModalRequest] = useState(null); // { request: req, onSuccess: fn }
 
-  // Fetch initial workspaces
+  // Fetch initial workspaces (delayed to allow frontend UI to render first)
   useEffect(() => {
-    ListWorkspaces()
-      .then((data) => {
-        if (data && data.length > 0) {
-          setWorkspaces(data);
-          setActiveWorkspaceId(data[0].id);
-        }
-      })
+    const initTimer = setTimeout(() => {
+      ListWorkspaces()
+        .then((data) => {
+          if (data && data.length > 0) {
+            setWorkspaces(data);
+            setActiveWorkspaceId(data[0].id);
+          }
+        })
+        .catch(console.error);
+    }, 100);
+
+    return () => clearTimeout(initTimer);
   }, []);
 
   // Auto-activate the only remaining tab if activeTabId is stale or null
