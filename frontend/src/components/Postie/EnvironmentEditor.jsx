@@ -49,13 +49,13 @@ const EnvironmentEditor = ({ environment, onUpdate }) => {
             onChange={e => setNameVal(e.target.value)}
             onBlur={commitName}
             onKeyDown={e => { if (e.key === 'Enter') commitName(); if (e.key === 'Escape') { setEditName(false); setNameVal(environment.name); } }}
-            style={{ background: 'none', border: 'none', borderBottom: '1px solid #FF6C37', outline: 'none', color: '#e0e0e0', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', padding: '2px 4px' }}
+            style={{ background: 'none', border: 'none', borderBottom: '1px solid #FF6C37', outline: 'none', color: '#e0e0e0', fontSize: 15, fontWeight: 600, fontFamily: 'inherit', padding: '0px' }}
           />
         ) : (
           <span
             onDoubleClick={() => { setEditName(true); setNameVal(environment.name); }}
             title="Double-click to rename"
-            style={{ color: '#e0e0e0', fontSize: 15, fontWeight: 600, cursor: 'text' }}
+            style={{ color: '#e0e0e0', borderBottom: '1px solid transparent', fontSize: 15, fontWeight: 600, cursor: 'text' }}
           >
             {environment.name}
           </span>
