@@ -278,16 +278,10 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
 
   const addEnv = () => {
     if (!activeWorkspaceId) return;
-    const name = `New Environment ${environments.length + 1}`;
-    CreateEnvironment({ workspace_id: activeWorkspaceId, name: name, variables: [{ id: uid(), key: '', value: '', enabled: true }] })
-      .then(env => {
-        if (env) {
-          setEnvironments(prev => [...prev, env]);
-          onOpenEnv(env);
-          setTimeout(() => setInlineEdit({ id: env.id, value: env.name }), 50);
-        }
-      })
-      .catch(console.error);
+    const tempId = uid();
+    const envObj = { id: tempId, name: 'New Environment', variables: [{ id: uid(), key: '', value: '', enabled: true }] };
+    setEnvironments(prev => [...prev, envObj]);
+    setInlineEdit({ id: tempId, value: 'New Environment', isNew: true });
   };
 
   const handleImport = (e) => {
@@ -310,13 +304,35 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
   };
 
   const commitEdit = (env) => {
-    if (inlineEdit?.value?.trim() && inlineEdit.value.trim() !== env.name) {
-      UpdateEnvironment(env.id, { name: inlineEdit.value.trim(), variables: env.variables || [] })
-        .then(updated => {
-          if (updated) setEnvironments(prev => prev.map(e => e.id === env.id ? updated : e));
-        })
-        .catch(console.error);
+    if (!inlineEdit) return;
+    const trimmed = inlineEdit.value?.trim();
+    if (inlineEdit.isNew) {
+      if (trimmed) {
+        CreateEnvironment({ workspace_id: activeWorkspaceId, name: trimmed, variables: env.variables || [] })
+          .then(newEnv => {
+            if (newEnv) {
+              setEnvironments(prev => prev.map(e => e.id === env.id ? newEnv : e));
+              onOpenEnv(newEnv);
+            }
+          })
+          .catch(() => setEnvironments(prev => prev.filter(e => e.id !== env.id)));
+      } else {
+        setEnvironments(prev => prev.filter(e => e.id !== env.id));
+      }
+    } else {
+      if (trimmed && trimmed !== env.name) {
+        UpdateEnvironment(env.id, { name: trimmed, variables: env.variables || [] })
+          .then(updated => {
+            if (updated) setEnvironments(prev => prev.map(e => e.id === env.id ? updated : e));
+          })
+          .catch(console.error);
+      }
     }
+    setInlineEdit(null);
+  };
+
+  const cancelEdit = (env) => {
+    if (inlineEdit?.isNew) setEnvironments(prev => prev.filter(e => e.id !== env.id));
     setInlineEdit(null);
   };
 
@@ -382,7 +398,7 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
               </div>
               <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                 {isEditing ? (
-                  <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={() => commitEdit(env)} onCancel={() => setInlineEdit(null)}
+                  <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={() => commitEdit(env)} onCancel={() => cancelEdit(env)}
                     extraStyle={{ fontWeight: 400, height: '15px', lineHeight: '15px', width: '100%', boxSizing: 'border-box' }} />
                 ) : (
                   <div onDoubleClick={e => { e.stopPropagation(); setInlineEdit({ id: env.id, value: env.name }); }}
@@ -501,8 +517,9 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
 
 
   /* ── inline edit ─── */
-  const startEdit = (id, value, onCommit) => setInlineEdit({ id, value, onCommit });
-  const commitEdit = () => { if (inlineEdit?.value?.trim()) inlineEdit.onCommit(inlineEdit.value.trim()); setInlineEdit(null); };
+  const startEdit = (id, value, onCommit, onCancel) => setInlineEdit({ id, value, onCommit, onCancel });
+  const commitEdit = () => { if (inlineEdit?.value?.trim()) { inlineEdit.onCommit(inlineEdit.value.trim()); } else if (inlineEdit?.onCancel) { inlineEdit.onCancel(); } setInlineEdit(null); };
+  const cancelEdit = () => { if (inlineEdit?.onCancel) inlineEdit.onCancel(); setInlineEdit(null); };
 
   /* ── deep mutate helpers ─── */
   // Recursively map items inside any depth
@@ -724,21 +741,46 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
         {
           icon: <FolderPlus size={12} />, label: 'Add Folder',
           action: () => {
-            CreateFolder({ collection_id: col.id, parent_id: null, name: 'New Folder' })
-              .then(f => {
-                if (f) setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'folder', id: f.id, name: f.name, isOpen: true, items: [] }] }));
-              })
-              .catch(console.error);
+            const tempId = uid();
+            setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'folder', id: tempId, name: 'New Folder', isOpen: true, items: [] }] }));
+            startEdit(tempId, 'New Folder',
+              name => {
+                CreateFolder({ collection_id: col.id, parent_id: null, name })
+                  .then(f => {
+                    if (f) updateItemById(col.id, tempId, () => ({ type: 'folder', id: f.id, name: f.name, isOpen: true, items: [] }));
+                    else deleteItemById(col.id, tempId);
+                  }).catch(() => deleteItemById(col.id, tempId));
+              },
+              () => deleteItemById(col.id, tempId)
+            );
           }
         },
         {
           icon: <Plus size={12} />, label: 'Add Request',
           action: () => {
-            CreateRequest({ collection_id: col.id, name: 'New Request', method: 'GET', url: '', params: [], path_variables: [], headers: [], auth: { type: 'none' }, body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] } })
-              .then(req => {
-                if (req) setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, normalizeItem({ ...req, type: 'request' })] }));
-              })
-              .catch(console.error);
+            const tempId = uid();
+            setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'request', id: tempId, name: 'New Request', method: 'GET' }] }));
+            startEdit(tempId, 'New Request',
+              name => {
+                CreateRequest({ collection_id: col.id, name, method: 'GET', url: '', params: [], path_variables: [], headers: [], auth: { type: 'none' }, body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] } })
+                  .then(req => {
+                    if (req) updateItemById(col.id, tempId, () => normalizeItem({ ...req, type: 'request' }));
+                    else deleteItemById(col.id, tempId);
+                  }).catch(() => deleteItemById(col.id, tempId));
+              },
+              () => deleteItemById(col.id, tempId)
+            );
+          }
+        },
+        'sep',
+        {
+          icon: <ChevronRight size={12} />, label: 'Collapse Tree',
+          action: () => {
+             setCollections(prev => prev.map(c => {
+               if (c.id !== col.id) return c;
+               const recurse = (arr) => arr.map(it => it.type === 'folder' ? { ...it, isOpen: false, items: recurse(it.items || []) } : it);
+               return { ...c, items: recurse(c.items || []) };
+             }));
           }
         },
         'sep',
@@ -798,20 +840,44 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
       x: e.clientX, y: e.clientY, items: [
         {
           icon: <FolderPlus size={12} />, label: 'Add Folder', action: () => {
-            CreateFolder({ collection_id: col.id, parent_id: fol.id, name: 'New Folder' })
-              .then(f => {
-                if (f) mapDeepItems(col.id, fol.id, items => [...items, { type: 'folder', id: f.id, name: f.name, isOpen: true, items: [] }]);
-              })
-              .catch(console.error);
+            const tempId = uid();
+            mapDeepItems(col.id, fol.id, items => [...items, { type: 'folder', id: tempId, name: 'New Folder', isOpen: true, items: [] }]);
+            startEdit(tempId, 'New Folder',
+              name => {
+                CreateFolder({ collection_id: col.id, parent_id: fol.id, name })
+                  .then(f => {
+                    if (f) updateItemById(col.id, tempId, () => ({ type: 'folder', id: f.id, name: f.name, isOpen: true, items: [] }));
+                    else deleteItemById(col.id, tempId);
+                  }).catch(() => deleteItemById(col.id, tempId));
+              },
+              () => deleteItemById(col.id, tempId)
+            );
           }
         },
         {
           icon: <Plus size={12} />, label: 'Add Request', action: () => {
-            CreateRequest({ collection_id: col.id, folder_id: fol.id, name: 'New Request', method: 'GET', url: '', params: [], path_variables: [], headers: [], auth: { type: 'none' }, body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] } })
-              .then(req => {
-                if (req) mapDeepItems(col.id, fol.id, items => [...items, normalizeItem({ ...req, type: 'request' })]);
-              })
-              .catch(console.error);
+            const tempId = uid();
+            mapDeepItems(col.id, fol.id, items => [...items, { type: 'request', id: tempId, name: 'New Request', method: 'GET' }]);
+            startEdit(tempId, 'New Request',
+              name => {
+                CreateRequest({ collection_id: col.id, folder_id: fol.id, name, method: 'GET', url: '', params: [], path_variables: [], headers: [], auth: { type: 'none' }, body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] } })
+                  .then(req => {
+                    if (req) updateItemById(col.id, tempId, () => normalizeItem({ ...req, type: 'request' }));
+                    else deleteItemById(col.id, tempId);
+                  }).catch(() => deleteItemById(col.id, tempId));
+              },
+              () => deleteItemById(col.id, tempId)
+            );
+          }
+        },
+        'sep',
+        {
+          icon: <ChevronRight size={12} />, label: 'Collapse Tree',
+          action: () => {
+             updateItemById(col.id, fol.id, it => {
+                const recurse = (arr) => arr.map(sub => sub.type === 'folder' ? { ...sub, isOpen: false, items: recurse(sub.items || []) } : sub);
+                return { ...it, isOpen: false, items: recurse(it.items || []) };
+             });
           }
         },
         'sep',
@@ -947,7 +1013,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
           </button>
           <span style={{ fontSize: 10, fontWeight: 700, color: METHOD_COLORS[req.method] || '#999', minWidth: 34, letterSpacing: '.3px' }}>{req.method.substring(0, 4)}</span>
           {isEditing ? (
-            <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} />
+            <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={cancelEdit} />
           ) : (
             <span
               onDoubleClick={e => { e.stopPropagation(); startEdit(req.id, req.name, name => { RenameRequest(req.id, { name }).then(updated => { if (updated) { const fn = items => items.map(it => it.id === req.id ? { ...it, name: updated.name } : it); folId ? mapDeepItems(col.id, folId, fn) : mapItems(col.id, fn); if (onRequestRenamed) onRequestRenamed(req.id, updated.name); } }).catch(console.error); }); }}
@@ -969,7 +1035,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
           >
             <span style={{ fontSize: 10, fontWeight: 600, color: ex.status >= 200 && ex.status < 300 ? '#49cc90' : '#f93e3e', minWidth: 34 }}>{ex.status || '—'}</span>
             {inlineEdit?.id === ex.id ? (
-              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} />
+              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={cancelEdit} />
             ) : (
               <span
                 onDoubleClick={e => { e.stopPropagation(); startEdit(ex.id, ex.name, name => { const fn = items => items.map(it => it.id === req.id ? { ...it, examples: it.examples.map(x => x.id === ex.id ? { ...x, name } : x) } : it); folId ? mapDeepItems(col.id, folId, fn) : mapItems(col.id, fn); }); }}
@@ -1013,7 +1079,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
               {item.isOpen ? <FolderOpen size={12} /> : <Folder size={12} />}
             </span>
             {isEditing ? (
-              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} />
+              <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={cancelEdit} />
             ) : (
               <span
                 onClick={() => toggleFolOpen(col.id, item.id)}
@@ -1108,7 +1174,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
                         }
                       })
                       .catch(() => setCollections(prev => prev.filter(c => c.id !== tempId)));
-                  });
+                  }, () => setCollections(prev => prev.filter(c => c.id !== tempId)));
                 }} title="New Collection" data-testid="new-collection-btn"
                   style={{ background: '#FF6C37', border: 'none', borderRadius: 4, padding: '5px 8px', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', flexShrink: 0, transition: 'background .15s' }}
                   onMouseEnter={e => { e.currentTarget.style.background = '#e55a28'; }}
@@ -1159,7 +1225,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
                       {col.isOpen ? <FolderOpen size={13} /> : <Folder size={13} />}
                     </span>
                     {inlineEdit?.id === col.id ? (
-                      <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={() => setInlineEdit(null)} />
+                      <InlineInput value={inlineEdit.value} onChange={v => setInlineEdit(p => ({ ...p, value: v }))} onCommit={commitEdit} onCancel={cancelEdit} />
                     ) : (
                       <span
                         onClick={() => toggleColOpen(col.id)}
