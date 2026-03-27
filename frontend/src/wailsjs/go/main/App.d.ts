@@ -17,7 +17,7 @@ export function CreateWorkspace(arg1:workspace.CreateWorkspaceRequest):Promise<w
 
 export function DeleteCollection(arg1:string,arg2:string):Promise<void>;
 
-export function DeleteEnvironment(arg1:string):Promise<void>;
+export function DeleteEnvironment(arg1:string,arg2:string):Promise<void>;
 
 export function DeleteFolder(arg1:string,arg2:string):Promise<void>;
 

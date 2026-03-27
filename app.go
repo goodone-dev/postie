@@ -476,7 +476,7 @@ func (a *App) UpdateEnvironment(id string, payload environment.UpdateEnvironment
 	return env, nil
 }
 
-func (a *App) DeleteEnvironment(id string) error {
+func (a *App) DeleteEnvironment(id string, name string) error {
 	uid, err := uuid.Parse(id)
 	if err != nil {
 		return err
@@ -487,7 +487,7 @@ func (a *App) DeleteEnvironment(id string) error {
 		return err
 	}
 
-	logger.Debugf(a.ctx, "Environment '%s' deleted", id).Write()
+	logger.Debugf(a.ctx, "Environment '%s' deleted", name).Write()
 
 	return nil
 }

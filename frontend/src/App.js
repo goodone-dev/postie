@@ -314,18 +314,24 @@ function App() {
 
   // Fetch initial workspaces (delayed to allow frontend UI to render first)
   useEffect(() => {
-    const initTimer = setTimeout(() => {
-      ListWorkspaces()
-        .then((data) => {
-          if (data && data.length > 0) {
-            setWorkspaces(data);
-            setActiveWorkspaceId(data[0].id);
-          }
-        })
-        .catch(console.error);
-    }, 100);
+    let frameId;
 
-    return () => clearTimeout(initTimer);
+    // First rAF: Runs right before the initial frame is painted
+    frameId = requestAnimationFrame(() => {
+      // Second rAF: Runs right before the NEXT frame is painted (which means the initial paint is done!)
+      frameId = requestAnimationFrame(() => {
+        ListWorkspaces()
+          .then((data) => {
+            if (data && data.length > 0) {
+              setWorkspaces(data);
+              setActiveWorkspaceId(data[0].id);
+            }
+          })
+          .catch(console.error);
+      });
+    });
+
+    return () => cancelAnimationFrame(frameId);
   }, []);
 
   // Auto-activate the only remaining tab if activeTabId is stale or null
@@ -789,10 +795,14 @@ function App() {
                           }
                           setRenamingWorkspaceId(null);
                         }
-                        if (e.key === 'Escape') setRenamingWorkspaceId(null);
+                        if (e.key === 'Escape') {
+                          e.stopPropagation();
+                          e.nativeEvent.stopImmediatePropagation();
+                          setRenamingWorkspaceId(null);
+                        }
                       }}
                       onClick={e => e.stopPropagation()}
-                      style={{ flex: 1, background: '#1e1e1e', border: '1px solid #FF6C37', borderRadius: 4, padding: '4px 8px', color: '#e0e0e0', fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+                      style={{ width: '100%', flex: 1, background: '#1e1e1e', border: '1px solid #FF6C37', borderRadius: 4, padding: '3px 8px', color: '#e0e0e0', fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
                     />
                   ) : (
                     <>
@@ -836,7 +846,14 @@ function App() {
                 {showCreateWorkspace ? (
                   <div style={{ padding: '6px' }} onClick={e => e.stopPropagation()}>
                     <input autoFocus value={newWorkspaceName} onChange={e => setNewWorkspaceName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') createWorkspace(); if (e.key === 'Escape') setShowCreateWorkspace(false); }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') createWorkspace();
+                        if (e.key === 'Escape') {
+                          e.stopPropagation();
+                          e.nativeEvent.stopImmediatePropagation();
+                          setShowCreateWorkspace(false);
+                        }
+                      }}
                       placeholder="Workspace name"
                       style={{ width: '100%', background: '#1e1e1e', border: '1px solid #FF6C37', borderRadius: '4px', padding: '6px 10px', color: '#e0e0e0', fontSize: '12px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', marginBottom: '6px' }}
                     />
@@ -1017,7 +1034,8 @@ function App() {
             <div style={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
               {tabs.map((tab) => {
                 const isEnvTab = tab.type === 'environment';
-                const label = isEnvTab ? tab.envName : (tab.request?.name || 'Untitled');
+                const envForTab = isEnvTab ? environments.find(e => e.id === tab.envId) : null;
+                const label = isEnvTab ? (envForTab?.name || tab.envName) : (tab.request?.name || 'Untitled');
                 const method = isEnvTab ? null : tab.request?.method;
                 return (
                   <div

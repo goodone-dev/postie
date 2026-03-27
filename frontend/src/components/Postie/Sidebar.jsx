@@ -364,7 +364,7 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
                     {
                       icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({
                         title: 'Delete Environment', message: `Delete "${env.name}"? This cannot be undone.`, onConfirm: () => {
-                          DeleteEnvironment(env.id).then(() => {
+                          DeleteEnvironment(env.id, env.name).then(() => {
                             setEnvironments(prev => prev.filter(e => e.id !== env.id));
                           }).catch(console.error);
                         }
@@ -404,7 +404,7 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
                     {
                       icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({
                         title: 'Delete Environment', message: `Delete "${env.name}"? This cannot be undone.`, onConfirm: () => {
-                          DeleteEnvironment(env.id).then(() => {
+                          DeleteEnvironment(env.id, env.name).then(() => {
                             setEnvironments(prev => prev.filter(e => e.id !== env.id));
                           }).catch(console.error);
                         }

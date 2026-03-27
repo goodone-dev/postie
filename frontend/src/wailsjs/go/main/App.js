@@ -26,8 +26,8 @@ export function DeleteCollection(arg1, arg2) {
   return window['go']['main']['App']['DeleteCollection'](arg1, arg2);
 }
 
-export function DeleteEnvironment(arg1) {
-  return window['go']['main']['App']['DeleteEnvironment'](arg1);
+export function DeleteEnvironment(arg1, arg2) {
+  return window['go']['main']['App']['DeleteEnvironment'](arg1, arg2);
 }
 
 export function DeleteFolder(arg1, arg2) {
