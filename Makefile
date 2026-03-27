@@ -36,35 +36,20 @@ mock-add: install-mockery
 test: install-test-coverage
 	@.dev/script/test.sh
 
-db-seed-new: install-migrate
-	@.dev/script/db-seed-new.sh -n $(NAME) -d $(DRIVER)
-
-db-seed-up: install-migrate
-	@.dev/script/db-seed-up.sh -d $(DRIVER)
-
 run:
 	@wails dev
 
-watch: install-air
-	@.dev/script/run.sh -w
+build:
+	@wails build
 
-docker-up: install-docker
-	@.dev/script/docker-up.sh
-
-docker-down: install-docker
-	@.dev/script/docker-down.sh
-
-docker-stop: install-docker
-	@.dev/script/docker-stop.sh
+module:
+	@wails generate module
 
 gen-repo:
 	@.dev/script/gen-repo.sh $(NAME)
 
 gen-usecase:
 	@.dev/script/gen-usecase.sh $(NAME)
-
-gen-handler:
-	@.dev/script/gen-handler.sh $(NAME)
 
 help:
 	@echo "Usage: make [target]"
@@ -74,6 +59,8 @@ help:
 	@echo ""
 	@echo "Development targets:"
 	@echo "  run                                               Run application"
+	@echo "  build                                             Build application"
+	@echo "  module                                            Generate module"
 	@echo ""
 	@echo "Layer generation targets:"
 	@echo "  gen-repo NAME=<name>                              Generate repository layer"
