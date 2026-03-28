@@ -80,7 +80,7 @@ help:
 
 .PHONY: help setup \
 		install-test-coverage install-migrate install-mockery install-pre-commit \
-		run \
+		run build module \
 		gen-repo gen-usecase \
 		db-migrate-new db-migrate-up db-migrate-down \
 		test \
