@@ -193,13 +193,13 @@ export const MOCK_ENVIRONMENTS = [
 export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
 export const METHOD_COLORS = {
-  GET: '#49cc90',
-  POST: '#fca130',
-  PUT: '#ffa500',
-  PATCH: '#50e3c2',
-  DELETE: '#f93e3e',
-  HEAD: '#9012fe',
-  OPTIONS: '#0d5aa7'
+  GET: '#00e676',
+  POST: '#ff9100',
+  PUT: '#2979ff',
+  PATCH: '#e040fb',
+  DELETE: '#ff1744',
+  HEAD: '#00e5ff',
+  OPTIONS: '#ffea00'
 };
 
 export const DEFAULT_REQUEST = {
