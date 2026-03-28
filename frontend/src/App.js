@@ -11,14 +11,18 @@ import { Plus, X, Settings, Bell, Search, ChevronDown, Layers, Check, Globe, Tra
 import './App.css';
 
 let tabCounter = 1;
-const createTab = (req = null) => ({
-  id: `tab-${Date.now()}-${tabCounter++}`,
-  type: 'request',
-  request: req ? { ...req } : { ...DEFAULT_REQUEST, id: `req-${Date.now()}` },
-  response: null,
-  isSending: false,
-  isDirty: false,
-});
+const createTab = (req = null) => {
+  const reqObj = req ? { ...req } : { ...DEFAULT_REQUEST, id: `req-${Date.now()}` };
+  return {
+    id: `tab-${Date.now()}-${tabCounter++}`,
+    type: 'request',
+    request: reqObj,
+    savedRequest: JSON.parse(JSON.stringify(reqObj)),
+    response: null,
+    isSending: false,
+    isDirty: false,
+  };
+};
 
 const createEnvTab = (env) => ({
   id: `envtab-${env.id}`,
@@ -502,10 +506,22 @@ function App() {
         if (toClose.length > 0) closeTabs(toClose);
       }
     },
+    {
+      label: 'Force Close All Tabs', action: () => {
+        const toClose = tabs.map(t => t.id);
+        if (toClose.length > 0) executeCloseTabs(toClose);
+      }
+    },
   ] : [];
 
   const updateActiveRequest = (request) => {
-    setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, request, isDirty: true } : t));
+    setTabs(prev => prev.map(t => {
+      if (t.id === activeTabId) {
+        const isNowDirty = JSON.stringify(t.savedRequest) !== JSON.stringify(request);
+        return { ...t, request, isDirty: isNowDirty };
+      }
+      return t;
+    }));
   };
 
   const buildFetchOptions = (request) => {
@@ -653,7 +669,7 @@ function App() {
       setSaveModalRequest({
         request,
         onSuccess: (savedRequest) => {
-          setTabs(prev => prev.map(t => (t.type === 'request' && t.request.id === request.id) ? { ...t, request: savedRequest, isDirty: false } : t));
+          setTabs(prev => prev.map(t => (t.type === 'request' && t.request.id === request.id) ? { ...t, request: savedRequest, savedRequest: JSON.parse(JSON.stringify(savedRequest)), isDirty: false } : t));
           setSidebarSignal({
             type: 'create_request',
             request: savedRequest,
@@ -677,7 +693,7 @@ function App() {
         body: request.body || { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] }
       });
       setSidebarSignal({ type: 'update_request', id: request.id, name: request.name || 'Untitled', method: request.method || 'GET' });
-      setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, isDirty: false } : t));
+      setTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, savedRequest: JSON.parse(JSON.stringify(request)), isDirty: false } : t));
     } catch (e) {
       console.error('Failed to save request', e);
     }
