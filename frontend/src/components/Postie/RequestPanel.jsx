@@ -245,16 +245,20 @@ const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending }) =
                   <span style={{ color: '#777', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Path Variables</span>
                   <span style={{ color: '#555', fontSize: '10px' }}>— detected from URL</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 28px', gap: '4px', marginBottom: '4px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1.5fr 28px', gap: '4px', marginBottom: '4px' }}>
                   <div /><div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Variable</div>
-                  <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Value</div><div />
+                  <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Value</div>
+                  <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</div><div />
                 </div>
                 {(request.path_variables || []).map((pv, i) => (
-                  <div key={pv.key} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 28px', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
+                  <div key={pv.key} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1.5fr 28px', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
                     <input type="checkbox" checked={pv.enabled} onChange={e => updatePathVar(i, 'enabled', e.target.checked)} style={{ accentColor: '#FF6C37', width: '14px', height: '14px', margin: '0 auto', cursor: 'pointer' }} />
                     <div style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: '#e8a87c', fontSize: '12px', fontFamily: '"Fira Code", monospace' }}>:{pv.key}</div>
                     <input value={pv.value} onChange={e => updatePathVar(i, 'value', e.target.value)} placeholder="Value"
                       style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: '#e0e0e0', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
+                      onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
+                    <input value={pv.description || ''} onChange={e => updatePathVar(i, 'description', e.target.value)} placeholder="Description"
+                      style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: '#e0e0e0', fontSize: '12px', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
                       onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
                     <div />
                   </div>
@@ -476,12 +480,13 @@ const FormDataTable = ({ rows, onAdd, onRemove, onUpdate }) => (
         <Plus size={12} /> Add
       </button>
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 28px', gap: '4px', marginBottom: '4px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1.5fr 28px', gap: '4px', marginBottom: '4px' }}>
       <div /><div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Key</div>
-      <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Value</div><div />
+      <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Value</div>
+      <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</div><div />
     </div>
     {rows.map((row, i) => (
-      <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 28px', gap: '4px', marginBottom: '5px', alignItems: 'center' }}>
+      <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1.5fr 28px', gap: '4px', marginBottom: '5px', alignItems: 'center' }}>
         <input type="checkbox" checked={row.enabled} onChange={e => onUpdate(i, 'enabled', e.target.checked)} style={{ accentColor: '#FF6C37', width: '14px', height: '14px', margin: '0 auto', cursor: 'pointer' }} />
         <div style={{ display: 'flex', background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', overflow: 'hidden', alignItems: 'center' }}
           onFocusCapture={e => { e.currentTarget.style.borderColor = '#FF6C37'; }}
@@ -502,6 +507,9 @@ const FormDataTable = ({ rows, onAdd, onRemove, onUpdate }) => (
             style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: row.enabled ? '#e0e0e0' : '#666', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
             onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
         )}
+        <input value={row.description || ''} onChange={e => onUpdate(i, 'description', e.target.value)} placeholder="Description"
+          style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: '#e0e0e0', fontSize: '12px', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
+          onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
         <button onClick={() => onRemove(i)}
           style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px', borderRadius: '3px', transition: 'color 0.1s' }}
           onMouseEnter={e => { e.currentTarget.style.color = '#f93e3e'; }} onMouseLeave={e => { e.currentTarget.style.color = '#555'; }}
@@ -521,18 +529,22 @@ const KeyValueTable = ({ rows, onAdd, onRemove, onUpdate, keyPlaceholder, valueP
         <Plus size={12} /> Add
       </button>
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 28px', gap: '4px', marginBottom: '4px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1.5fr 28px', gap: '4px', marginBottom: '4px' }}>
       <div /><div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Key</div>
-      <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Value</div><div />
+      <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Value</div>
+      <div style={{ color: '#555', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Description</div><div />
     </div>
     {rows.map((row, i) => (
-      <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 28px', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
+      <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1.5fr 28px', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
         <input type="checkbox" checked={row.enabled} onChange={e => onUpdate(i, 'enabled', e.target.checked)} style={{ accentColor: '#FF6C37', width: '14px', height: '14px', margin: '0 auto', cursor: 'pointer' }} />
         <input value={row.key} onChange={e => onUpdate(i, 'key', e.target.value)} placeholder={keyPlaceholder}
           style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: row.enabled ? '#e0e0e0' : '#666', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
           onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
         <input value={row.value} onChange={e => onUpdate(i, 'value', e.target.value)} placeholder={valuePlaceholder}
           style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: row.enabled ? '#e0e0e0' : '#666', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
+          onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
+        <input value={row.description || ''} onChange={e => onUpdate(i, 'description', e.target.value)} placeholder="Description"
+          style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: '#e0e0e0', fontSize: '12px', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
           onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
         <button onClick={() => onRemove(i)}
           style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px', borderRadius: '3px', transition: 'color 0.1s' }}
