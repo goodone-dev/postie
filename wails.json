@@ -1,6 +1,6 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "postie",
+  "name": "Postie",
   "outputfilename": "Postie",
   "wailsjsdir": "./frontend/src",
   "frontend:install": "yarn install",
