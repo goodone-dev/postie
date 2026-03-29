@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/goodone-dev/postie/internal/domain/collection"
@@ -42,4 +43,32 @@ func (r *collectionFolderRepository) FindMaxIdx(ctx context.Context, conds map[s
 	}
 
 	return *res, nil
+}
+
+func (r *collectionFolderRepository) UpdateIdxAndParent(ctx context.Context, id uuid.UUID, idx int, parentID *uuid.UUID) error {
+	model := collection.CollectionFolder{}
+
+	builder := sq.
+		Update(model.TableName()).
+		Set("idx", idx).
+		Set("updated_at", time.Now()).
+		Where(sq.Eq{"id": id})
+
+	if parentID != nil {
+		builder = builder.Set("parent_id", *parentID)
+	} else {
+		builder = builder.Set("parent_id", nil)
+	}
+
+	qry, args, err := builder.ToSql()
+	if err != nil {
+		return err
+	}
+
+	err = r.DB().WithContext(ctx).Exec(qry, args...).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

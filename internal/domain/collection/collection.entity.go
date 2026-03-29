@@ -11,6 +11,7 @@ type Collection struct {
 	Name        string    `json:"name"`
 	Slug        string    `json:"slug"`
 	IsFavorite  bool      `json:"is_favorite"`
+	SortOrder   SortOrder `json:"sort_order"`
 }
 
 func (Collection) TableName() string {

@@ -21,13 +21,34 @@ type CollectionResponse struct {
 	Name       string           `json:"name"`
 	Slug       string           `json:"slug"`
 	IsFavorite bool             `json:"is_favorite"`
+	SortOrder  SortOrder        `json:"sort_order"`
 	Items      []CollectionTree `json:"items"`
 }
 
 type CollectionTree struct {
-	Type   string           `json:"type"`
-	ID     string           `json:"id"`
-	Name   string           `json:"name"`
-	Method *string          `json:"method,omitempty"`
-	Items  []CollectionTree `json:"items,omitempty"`
+	Type      TreeType         `json:"type"`
+	ID        string           `json:"id"`
+	Name      string           `json:"name"`
+	Method    *string          `json:"method,omitempty"`
+	SortOrder *SortOrder       `json:"sort_order,omitempty"`
+	Items     []CollectionTree `json:"items,omitempty"`
+}
+
+type TreeType string
+
+const (
+	TreeTypeFolder  TreeType = "folder"
+	TreeTypeRequest TreeType = "request"
+)
+
+type SortOrder string
+
+const (
+	SortOrderDefault SortOrder = "default"
+	SortOrderAlpha   SortOrder = "alpha"
+)
+
+type ReorderItemsRequest struct {
+	ParentFolderID *string          `json:"parent_folder_id"`
+	Items          []CollectionTree `json:"items,omitempty"`
 }

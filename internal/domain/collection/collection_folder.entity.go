@@ -11,6 +11,7 @@ type CollectionFolder struct {
 	ParentID     *uuid.UUID `json:"parent_id"`
 	Name         string     `json:"name"`
 	Slug         string     `json:"slug"`
+	SortOrder    SortOrder  `json:"sort_order"`
 	Idx          int        `json:"idx"`
 }
 

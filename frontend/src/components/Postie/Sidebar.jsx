@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   ChevronRight, ChevronDown, Plus, Search, FolderOpen, Folder,
   Clock, Star, MoreHorizontal, Download, FolderPlus, Copy,
-  Trash2, Pencil, Globe, File, ArrowRight
+  Trash2, Pencil, Globe, File, ArrowRight, ArrowUpDown
 } from 'lucide-react';
 import { METHOD_COLORS } from '../../mock';
 import {
@@ -10,7 +10,8 @@ import {
   DeleteCollection, DuplicateCollection, MoveCollection,
   CreateEnvironment, UpdateEnvironment, DeleteEnvironment, DuplicateEnvironment,
   CreateFolder, RenameFolder, DeleteFolder, DuplicateFolder,
-  GetRequest, CreateRequest, RenameRequest, UpdateRequest, DeleteRequest, DuplicateRequest
+  GetRequest, CreateRequest, RenameRequest, UpdateRequest, DeleteRequest, DuplicateRequest,
+  ReorderCollectionItems, UpdateCollectionSortOrder, UpdateFolderSortOrder
 } from '../../wailsjs/go/main/App';
 
 const uid = () => `id-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -24,7 +25,7 @@ const cloneItem = (item) => ({
 // Converts a raw backend tree node into the shape expected by renderNode.
 const normalizeItem = (node) => {
   if (node.type === 'folder') {
-    return { ...node, isOpen: false, items: (node.items || []).map(normalizeItem) };
+    return { ...node, isOpen: false, sortOrder: node.sort_order || node.sortOrder || 'default', items: (node.items || []).map(normalizeItem) };
   }
   // request – ensure arrays exist so the rest of the UI never crashes
   return {
@@ -228,20 +229,43 @@ const MoveModal = ({ collection, workspaces, currentWorkspaceId, onMove, onClose
 
 /* ─── CONTEXT MENU ────────────────────────────────────────────── */
 const CtxMenu = ({ x, y, items, onClose }) => {
+  const [activeSub, setActiveSub] = useState(null);
+
   useEffect(() => {
     const close = () => onClose();
     setTimeout(() => document.addEventListener('click', close), 0);
     return () => document.removeEventListener('click', close);
   }, [onClose]);
+
   return (
-    <div style={{ position: 'fixed', left: x, top: y, zIndex: 9999, background: '#2a2a2a', border: '1px solid #3d3d3d', borderRadius: 6, width: 190, boxShadow: '0 6px 24px rgba(0,0,0,.6)', overflow: 'hidden' }}>
+    <div style={{ position: 'fixed', left: x, top: y, zIndex: 9999, background: '#2a2a2a', border: '1px solid #3d3d3d', borderRadius: 6, width: 190, boxShadow: '0 6px 24px rgba(0,0,0,.6)', padding: '4px 0' }}>
       {items.map((item, i) =>
         item === 'sep' ? <div key={i} style={{ height: 1, background: '#333', margin: '3px 0' }} /> : (
-          <button key={i} onClick={() => { item.action(); onClose(); }}
-            style={{ width: '100%', background: 'none', border: 'none', padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, color: item.danger ? '#f93e3e' : '#ccc', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .1s' }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#3d3d3d'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
-          >{item.icon}{item.label}</button>
+          <div key={i}
+            onMouseEnter={e => { e.currentTarget.style.background = '#3d3d3d'; if (item.submenu) setActiveSub(i); else setActiveSub(null); }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; if (item.submenu) setActiveSub(null); }}
+            style={{ width: '100%', position: 'relative' }}
+          >
+            <button onClick={(e) => { if (item.submenu) e.stopPropagation(); else { item.action(); onClose(); } }}
+              style={{ width: '100%', background: 'none', border: 'none', padding: '6px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: item.danger ? '#f93e3e' : '#ccc', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .1s' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{item.icon}{item.label}</div>
+              {item.submenu && <ChevronRight size={12} />}
+            </button>
+            {item.submenu && activeSub === i && (
+              <div style={{ position: 'absolute', left: '100%', top: -4, zIndex: 10000, background: '#2a2a2a', border: '1px solid #3d3d3d', borderRadius: 6, minWidth: 160, boxShadow: '0 6px 24px rgba(0,0,0,.6)', padding: '4px 0' }}>
+                {item.submenu.map((sub, j) =>
+                  sub === 'sep' ? <div key={j} style={{ height: 1, background: '#333', margin: '3px 0' }} /> : (
+                    <button key={j} onClick={(e) => { e.stopPropagation(); sub.action(); onClose(); }}
+                      style={{ width: '100%', background: 'none', border: 'none', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8, color: sub.danger ? '#f93e3e' : '#ccc', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .1s' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#3d3d3d'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                    >{sub.icon}{sub.label}</button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
         )
       )}
     </div>
@@ -452,8 +476,11 @@ const preserveOpenState = (oldItems, newItems) => {
   if (!oldItems || !newItems) return newItems;
   return newItems.map(newItem => {
     const oldItem = oldItems.find(it => it.id === newItem.id);
-    if (oldItem && newItem.type === 'folder') {
-      return { ...newItem, isOpen: oldItem.isOpen, items: preserveOpenState(oldItem.items, newItem.items) };
+    if (oldItem) {
+      if (newItem.type === 'folder') {
+        return { ...newItem, isOpen: oldItem.isOpen, sortOrder: oldItem.sortOrder || newItem.sortOrder || 'default', items: preserveOpenState(oldItem.items, newItem.items) };
+      }
+      return { ...newItem, sortOrder: oldItem.sortOrder || newItem.sortOrder || 'default' };
     }
     return newItem;
   });
@@ -495,6 +522,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
             ...col,
             isOpen: false,
             isFavorite: col.is_favorite ?? false,
+            sortOrder: col.sort_order || 'default',
             items: col.items || [],
           })));
         }
@@ -632,7 +660,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
             if (data) {
               setCollections(p => p.map(c =>
                 c.id === colId
-                  ? { ...c, isOpen: true, items: (data.items || []).map(normalizeItem) }
+                  ? { ...c, isOpen: true, sortOrder: data.sort_order || c.sortOrder || 'default', items: (data.items || []).map(normalizeItem) }
                   : c
               ));
             }
@@ -665,29 +693,100 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
       if (col.id !== colId) return col;
       // Extract dragged item
       let draggedItem = null;
-      const extract = (items) => items.filter(it => { if (it.id === drag.id) { draggedItem = it; return false; } return true; });
-      let newItems = drag.folId
-        ? col.items.map(it => it.id !== drag.folId ? it : { ...it, items: extract(it.items) })
-        : extract(col.items);
+      const extractDeep = (items) => {
+        let result = [];
+        for (const it of items) {
+          if (it.id === drag.id) { draggedItem = it; continue; }
+          if (it.type === 'folder' && it.items) {
+            result.push({ ...it, items: extractDeep(it.items) });
+          } else {
+            result.push(it);
+          }
+        }
+        return result;
+      };
+      let newItems = extractDeep(col.items);
       if (!draggedItem) return col;
       // Insert at target
-      if (targetInfo.type === 'inside') {
-        newItems = newItems.map(it => it.id !== targetInfo.id ? it : { ...it, items: [...it.items, draggedItem] });
-      } else if (targetInfo.folId) {
-        newItems = newItems.map(it => {
-          if (it.id !== targetInfo.folId) return it;
-          const idx = it.items.findIndex(sub => sub.id === targetInfo.id);
-          const arr = [...it.items];
-          if (idx !== -1) arr.splice(idx, 0, draggedItem); else arr.push(draggedItem);
-          return { ...it, items: arr };
+      let targetParentId = null;
+      const insertDeep = (items, tgtId, tgtFolId, insertType) => {
+        if (insertType === 'inside') {
+          return items.map(it => {
+            if (it.id === tgtId) {
+              targetParentId = tgtId;
+              return { ...it, isOpen: true, items: [...(it.items || []), draggedItem] };
+            }
+            if (it.type === 'folder' && it.items) return { ...it, items: insertDeep(it.items, tgtId, tgtFolId, insertType) };
+            return it;
+          });
+        }
+        // Find target in this level
+        const tgtIdx = items.findIndex(it => it.id === tgtId);
+        if (tgtIdx !== -1) {
+          targetParentId = tgtFolId || null;
+          const arr = [...items];
+          arr.splice(tgtIdx, 0, draggedItem);
+          return arr;
+        }
+        // Recurse into folders
+        return items.map(it => {
+          if (it.type === 'folder' && it.items) return { ...it, items: insertDeep(it.items, tgtId, tgtFolId, insertType) };
+          return it;
         });
-      } else {
-        const idx = newItems.findIndex(it => it.id === targetInfo.id);
-        const arr = [...newItems];
-        if (idx !== -1) arr.splice(idx, 0, draggedItem); else arr.push(draggedItem);
-        newItems = arr;
+      };
+      newItems = insertDeep(newItems, targetInfo.id, targetInfo.folId, targetInfo.type);
+
+      // Persist to DB: collect items at the target parent level
+      const collectItemsAtParent = (items, parentId) => {
+        if (!parentId) return items;
+        for (const it of items) {
+          if (it.id === parentId) return it.items || [];
+          if (it.type === 'folder' && it.items) {
+            const found = collectItemsAtParent(it.items, parentId);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      const targetItems = targetParentId ? collectItemsAtParent(newItems, targetParentId) : newItems;
+      if (targetItems) {
+        const reorderPayload = {
+          parent_folder_id: targetParentId || null,
+          items: targetItems.map(it => ({ id: it.id, type: it.type || 'request' }))
+        };
+        ReorderCollectionItems(colId, col.name, reorderPayload).catch(console.error);
       }
-      return { ...col, items: newItems };
+      // If source parent is different, also reorder source parent
+      const sourceParentId = drag.folId || null;
+      if (sourceParentId !== targetParentId) {
+        const sourceItems = sourceParentId ? collectItemsAtParent(newItems, sourceParentId) : newItems;
+        if (sourceItems) {
+          const srcPayload = {
+            parent_folder_id: sourceParentId || null,
+            items: sourceItems.map(it => ({ id: it.id, type: it.type || 'request' }))
+          };
+          ReorderCollectionItems(colId, col.name, srcPayload).catch(console.error);
+        }
+      }
+
+      // Reset sortOrder to 'default' for target and source parents since manual reordering overrides sorting
+      let updatedColSortOrder = col.sortOrder;
+      const resetSort = (arr) => arr.map(it => {
+        let updatedIt = it;
+        if (it.id === targetParentId || it.id === sourceParentId) {
+          updatedIt = { ...updatedIt, sortOrder: 'default' };
+        }
+        if (updatedIt.items) {
+          updatedIt = { ...updatedIt, items: resetSort(updatedIt.items) };
+        }
+        return updatedIt;
+      });
+      newItems = resetSort(newItems);
+      if (!targetParentId || (!sourceParentId && drag.colId === colId)) {
+         updatedColSortOrder = 'default';
+      }
+
+      return { ...col, sortOrder: updatedColSortOrder, items: newItems };
     }));
     onDragEnd();
   };
@@ -774,13 +873,13 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
         },
         'sep',
         {
-          icon: <ChevronRight size={12} />, label: 'Collapse Tree',
+          icon: <ChevronRight size={12} />, label: 'Collapse',
           action: () => {
-             setCollections(prev => prev.map(c => {
-               if (c.id !== col.id) return c;
-               const recurse = (arr) => arr.map(it => it.type === 'folder' ? { ...it, isOpen: false, items: recurse(it.items || []) } : it);
-               return { ...c, items: recurse(c.items || []) };
-             }));
+            setCollections(prev => prev.map(c => {
+              if (c.id !== col.id) return c;
+              const recurse = (arr) => arr.map(it => it.type === 'folder' ? { ...it, isOpen: false, items: recurse(it.items || []) } : it);
+              return { ...c, items: recurse(c.items || []) };
+            }));
           }
         },
         'sep',
@@ -811,6 +910,45 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
               })
               .catch(console.error);
           }
+        },
+        {
+          icon: <ArrowUpDown size={12} />, label: 'Sort',
+          submenu: [
+            {
+              label: (col.sortOrder === 'default' ? '✓ ' : '') + 'Folder first, Default',
+              action: () => {
+                UpdateCollectionSortOrder(col.id, col.name, 'default').then(() => {
+                  setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, sortOrder: 'default' }));
+                  GetCollection(col.id).then(res => {
+                    if (res) setCollections(prev => prev.map(c => {
+                      if (c.id === col.id) {
+                        const normalized = normalizeItem({ ...res, type: 'collection' });
+                        return { ...normalized, isOpen: c.isOpen, isFavorite: c.isFavorite, sortOrder: 'default', items: preserveOpenState(c.items, normalized.items) };
+                      }
+                      return c;
+                    }));
+                  }).catch(console.error);
+                }).catch(console.error);
+              }
+            },
+            {
+              label: (col.sortOrder === 'alpha' ? '✓ ' : '') + 'Folder first, A - Z',
+              action: () => {
+                UpdateCollectionSortOrder(col.id, col.name, 'alpha').then(() => {
+                  setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, sortOrder: 'alpha' }));
+                  GetCollection(col.id).then(res => {
+                    if (res) setCollections(prev => prev.map(c => {
+                      if (c.id === col.id) {
+                        const normalized = normalizeItem({ ...res, type: 'collection' });
+                        return { ...normalized, isOpen: c.isOpen, isFavorite: c.isFavorite, sortOrder: 'alpha', items: preserveOpenState(c.items, normalized.items) };
+                      }
+                      return c;
+                    }));
+                  }).catch(console.error);
+                }).catch(console.error);
+              }
+            }
+          ]
         },
         {
           icon: <Trash2 size={12} />, label: 'Delete', danger: true,
@@ -872,12 +1010,12 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
         },
         'sep',
         {
-          icon: <ChevronRight size={12} />, label: 'Collapse Tree',
+          icon: <ChevronRight size={12} />, label: 'Collapse',
           action: () => {
-             updateItemById(col.id, fol.id, it => {
-                const recurse = (arr) => arr.map(sub => sub.type === 'folder' ? { ...sub, isOpen: false, items: recurse(sub.items || []) } : sub);
-                return { ...it, isOpen: false, items: recurse(it.items || []) };
-             });
+            updateItemById(col.id, fol.id, it => {
+              const recurse = (arr) => arr.map(sub => sub.type === 'folder' ? { ...sub, isOpen: false, items: recurse(sub.items || []) } : sub);
+              return { ...it, isOpen: false, items: recurse(it.items || []) };
+            });
           }
         },
         'sep',
@@ -910,6 +1048,45 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
           }
         },
         {
+          icon: <ArrowUpDown size={12} />, label: 'Sort',
+          submenu: [
+            {
+              label: (fol.sortOrder === 'default' ? '✓ ' : '') + 'Folder first, Default',
+              action: () => {
+                UpdateFolderSortOrder(fol.id, fol.name, 'default').then(() => {
+                  updateItemById(col.id, fol.id, it => ({ ...it, sortOrder: 'default' }));
+                  GetCollection(col.id).then(res => {
+                    if (res) setCollections(prev => prev.map(c => {
+                      if (c.id === col.id) {
+                        const normalized = normalizeItem({ ...res, type: 'collection' });
+                        return { ...normalized, isOpen: c.isOpen, isFavorite: c.isFavorite, sortOrder: c.sortOrder, items: preserveOpenState(c.items, normalized.items) };
+                      }
+                      return c;
+                    }));
+                  }).catch(console.error);
+                }).catch(console.error);
+              }
+            },
+            {
+              label: (fol.sortOrder === 'alpha' ? '✓ ' : '') + 'Folder first, A - Z',
+              action: () => {
+                UpdateFolderSortOrder(fol.id, fol.name, 'alpha').then(() => {
+                  updateItemById(col.id, fol.id, it => ({ ...it, sortOrder: 'alpha' }));
+                  GetCollection(col.id).then(res => {
+                    if (res) setCollections(prev => prev.map(c => {
+                      if (c.id === col.id) {
+                        const normalized = normalizeItem({ ...res, type: 'collection' });
+                        return { ...normalized, isOpen: c.isOpen, isFavorite: c.isFavorite, sortOrder: c.sortOrder, items: preserveOpenState(c.items, normalized.items) };
+                      }
+                      return c;
+                    }));
+                  }).catch(console.error);
+                }).catch(console.error);
+              }
+            }
+          ]
+        },
+        {
           icon: <Trash2 size={12} />, label: 'Delete', danger: true, action: () => setConfirmDel({
             title: 'Delete Folder', message: `Delete "${fol.name}" and its ${fol.items?.length || 0} item(s)?`, onConfirm: () => {
               DeleteFolder(fol.id, fol.name)
@@ -917,7 +1094,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
                 .catch(console.error);
             }
           })
-        }
+        },
       ]
     });
   };

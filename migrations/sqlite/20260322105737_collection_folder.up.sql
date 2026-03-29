@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS collection_folders (
     parent_id UUID NULL,
     name VARCHAR NOT NULL,
     slug VARCHAR NOT NULL,
+    sort_order VARCHAR NOT NULL DEFAULT 'default',
     idx INT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,

@@ -231,6 +231,38 @@ func (a *App) MoveCollection(id string, payload collection.MoveCollectionRequest
 	return collection, nil
 }
 
+func (a *App) ReorderCollectionItems(collectionID string, collectionName string, payload collection.ReorderItemsRequest) error {
+	uid, err := uuid.Parse(collectionID)
+	if err != nil {
+		return err
+	}
+
+	err = a.collectionUsecase.ReorderItems(a.ctx, uid, payload)
+	if err != nil {
+		return err
+	}
+
+	logger.Debugf(a.ctx, "Collection '%s' items reordered", collectionName).Write()
+
+	return nil
+}
+
+func (a *App) UpdateCollectionSortOrder(id string, name string, sortOrder string) (*collection.CollectionResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+
+	col, err := a.collectionUsecase.UpdateSortOrder(a.ctx, uid, sortOrder)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Collection '%s' sort order updated to '%s'", name, sortOrder).Write()
+
+	return col, nil
+}
+
 // ── Folder ───────────────────────────────────────────────────────────────
 
 func (a *App) CreateFolder(payload collection.CreateFolderRequest) (*collection.FolderResponse, error) {
@@ -288,6 +320,22 @@ func (a *App) DuplicateFolder(id string) (*collection.FolderResponse, error) {
 	}
 
 	logger.Debugf(a.ctx, "Folder '%s' duplicated", folder.Name).Write()
+
+	return folder, nil
+}
+
+func (a *App) UpdateFolderSortOrder(id string, name string, sortOrder string) (*collection.FolderResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+
+	folder, err := a.collectionUsecase.UpdateFolderSortOrder(a.ctx, uid, sortOrder)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Folder '%s' sort order updated to '%s'", name, sortOrder).Write()
 
 	return folder, nil
 }

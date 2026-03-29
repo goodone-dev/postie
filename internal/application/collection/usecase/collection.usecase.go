@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"encoding/json"
+	"sort"
 	"strings"
 
 	"github.com/goodone-dev/postie/internal/domain/collection"
@@ -26,52 +27,103 @@ func NewCollectionUsecase(collectionRepo collection.CollectionRepository, folder
 }
 
 func toCollectionResponse(c collection.Collection) collection.CollectionResponse {
+	sortOrder := c.SortOrder
+	if sortOrder == "" {
+		sortOrder = collection.SortOrderDefault
+	}
+
 	return collection.CollectionResponse{
 		ID:         c.ID,
 		Name:       c.Name,
 		Slug:       c.Slug,
 		IsFavorite: c.IsFavorite,
+		SortOrder:  sortOrder,
 		Items:      make([]collection.CollectionTree, 0),
 	}
 }
 
-func (u *collectionUsecase) buildTree(ctx context.Context, colID uuid.UUID) []collection.CollectionTree {
-	folders, _ := u.folderRepo.FindAll(ctx, map[string]any{"collection_id": colID})
-	requests, _ := u.requestRepo.FindAll(ctx, map[string]any{"collection_id": colID})
+func (u *collectionUsecase) buildTree(ctx context.Context, col *collection.Collection) []collection.CollectionTree {
+	folders, _ := u.folderRepo.FindAll(ctx, map[string]any{"collection_id": col.ID})
+	requests, _ := u.requestRepo.FindAll(ctx, map[string]any{"collection_id": col.ID})
 
-	var recurse func(parentID *uuid.UUID) []collection.CollectionTree
-	recurse = func(parentID *uuid.UUID) []collection.CollectionTree {
-		items := make([]collection.CollectionTree, 0)
+	colSortOrder := col.SortOrder
+	if colSortOrder == "" {
+		colSortOrder = collection.SortOrderDefault
+	}
+
+	var recurse func(parentID *uuid.UUID, sortOrder collection.SortOrder) []collection.CollectionTree
+	recurse = func(parentID *uuid.UUID, sortOrder collection.SortOrder) []collection.CollectionTree {
+		// Collect matching folders
+		var matchingFolders []collection.CollectionFolder
 		for _, f := range folders {
 			match := (f.ParentID == nil && parentID == nil) || (f.ParentID != nil && parentID != nil && *f.ParentID == *parentID)
 			if match {
-				idStr := f.ID.String()
-				folderNode := collection.CollectionTree{
-					Type:  "folder",
-					ID:    idStr,
-					Name:  f.Name,
-					Items: recurse(&f.ID),
-				}
-				items = append(items, folderNode)
+				matchingFolders = append(matchingFolders, f)
 			}
 		}
+
+		// Collect matching requests
+		var matchingRequests []collection.CollectionRequest
 		for _, r := range requests {
 			match := (r.FolderID == nil && parentID == nil) || (r.FolderID != nil && parentID != nil && *r.FolderID == *parentID)
 			if match {
-				rr := toRequestResponse(r)
-				reqNode := collection.CollectionTree{
-					Type:   "request",
-					ID:     rr.ID.String(),
-					Name:   rr.Name,
-					Method: &rr.Method,
-				}
-				items = append(items, reqNode)
+				matchingRequests = append(matchingRequests, r)
 			}
 		}
+
+		// Sort based on sortOrder
+		if sortOrder == collection.SortOrderAlpha {
+			sort.Slice(matchingFolders, func(i, j int) bool {
+				return strings.ToLower(matchingFolders[i].Name) < strings.ToLower(matchingFolders[j].Name)
+			})
+			sort.Slice(matchingRequests, func(i, j int) bool {
+				return strings.ToLower(matchingRequests[i].Name) < strings.ToLower(matchingRequests[j].Name)
+			})
+		} else {
+			sort.Slice(matchingFolders, func(i, j int) bool {
+				return matchingFolders[i].Idx < matchingFolders[j].Idx
+			})
+			sort.Slice(matchingRequests, func(i, j int) bool {
+				return matchingRequests[i].Idx < matchingRequests[j].Idx
+			})
+		}
+
+		items := make([]collection.CollectionTree, 0, len(matchingFolders)+len(matchingRequests))
+
+		for _, f := range matchingFolders {
+			folSortOrder := f.SortOrder
+			if folSortOrder == "" {
+				folSortOrder = collection.SortOrderDefault
+			}
+
+			folderNode := collection.CollectionTree{
+				Type:      collection.TreeTypeFolder,
+				ID:        f.ID.String(),
+				Name:      f.Name,
+				SortOrder: &folSortOrder,
+				Items:     recurse(&f.ID, folSortOrder),
+			}
+
+			items = append(items, folderNode)
+		}
+
+		for _, r := range matchingRequests {
+			rr := toRequestResponse(r)
+
+			reqNode := collection.CollectionTree{
+				Type:   collection.TreeTypeRequest,
+				ID:     rr.ID.String(),
+				Name:   rr.Name,
+				Method: &rr.Method,
+			}
+
+			items = append(items, reqNode)
+		}
+
 		return items
 	}
 
-	return recurse(nil)
+	return recurse(nil, colSortOrder)
 }
 
 func (u *collectionUsecase) List(ctx context.Context, workspaceID uuid.UUID) ([]collection.CollectionResponse, error) {
@@ -99,6 +151,7 @@ func (u *collectionUsecase) Create(ctx context.Context, payload collection.Creat
 		Name:        payload.Name,
 		Slug:        slug,
 		IsFavorite:  false,
+		SortOrder:   collection.SortOrderDefault,
 	}
 
 	col, err := u.collectionRepo.Insert(ctx, entity, nil)
@@ -132,7 +185,7 @@ func (u *collectionUsecase) Get(ctx context.Context, ID uuid.UUID) (*collection.
 	}
 
 	res := toCollectionResponse(*col)
-	res.Items = u.buildTree(ctx, col.ID)
+	res.Items = u.buildTree(ctx, col)
 	return &res, nil
 }
 
@@ -203,6 +256,7 @@ func (u *collectionUsecase) Duplicate(ctx context.Context, ID uuid.UUID) (*colle
 		Name:        original.Name + " (copy)",
 		Slug:        original.Slug + "-copy",
 		IsFavorite:  false,
+		SortOrder:   original.SortOrder,
 	}
 
 	col, err := u.collectionRepo.Insert(ctx, newCol, nil)
@@ -225,6 +279,7 @@ func (u *collectionUsecase) Duplicate(ctx context.Context, ID uuid.UUID) (*colle
 			Name:         folder.Name,
 			Slug:         folder.Slug,
 			Idx:          folder.Idx,
+			SortOrder:    folder.SortOrder,
 		}
 
 		inserted, err := u.folderRepo.Insert(ctx, newFolder, nil)
@@ -250,6 +305,7 @@ func (u *collectionUsecase) Duplicate(ctx context.Context, ID uuid.UUID) (*colle
 			Name:         folder.Name,
 			Slug:         folder.Slug,
 			Idx:          folder.Idx,
+			SortOrder:    folder.SortOrder,
 		}
 
 		inserted, err := u.folderRepo.Insert(ctx, newFolder, nil)
@@ -310,15 +366,84 @@ func (u *collectionUsecase) Move(ctx context.Context, ID uuid.UUID, payload coll
 	return &res, nil
 }
 
+func (u *collectionUsecase) UpdateSortOrder(ctx context.Context, ID uuid.UUID, sortOrder string) (*collection.CollectionResponse, error) {
+	_, err := u.getEntity(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
+
+	update := map[string]any{
+		"sort_order": sortOrder,
+	}
+
+	col, err := u.collectionRepo.UpdateById(ctx, ID, update, nil)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to update collection sort order").Write()
+		return nil, err
+	}
+
+	res := toCollectionResponse(col)
+	return &res, nil
+}
+
+func (u *collectionUsecase) ReorderItems(ctx context.Context, collectionID uuid.UUID, payload collection.ReorderItemsRequest) error {
+	var parentFolderID *uuid.UUID
+	if payload.ParentFolderID != nil && *payload.ParentFolderID != "" {
+		id, err := uuid.Parse(*payload.ParentFolderID)
+		if err != nil {
+			return err
+		}
+		parentFolderID = &id
+	}
+
+	for i, item := range payload.Items {
+		id, err := uuid.Parse(item.ID)
+		if err != nil {
+			continue
+		}
+
+		switch item.Type {
+		case collection.TreeTypeFolder:
+			if err := u.folderRepo.UpdateIdxAndParent(ctx, id, i, parentFolderID); err != nil {
+				logger.Error(ctx, err, "❌ Failed to reorder folder").Write()
+			}
+		case collection.TreeTypeRequest:
+			if err := u.requestRepo.UpdateIdxAndFolder(ctx, id, i, parentFolderID); err != nil {
+				logger.Error(ctx, err, "❌ Failed to reorder request").Write()
+			}
+		}
+	}
+
+	if parentFolderID != nil {
+		_, err := u.UpdateFolderSortOrder(ctx, *parentFolderID, string(collection.SortOrderDefault))
+		if err != nil {
+			logger.Error(ctx, err, "❌ Failed to update folder sort order to default").Write()
+		}
+	} else {
+		_, err := u.UpdateSortOrder(ctx, collectionID, string(collection.SortOrderDefault))
+		if err != nil {
+			logger.Error(ctx, err, "❌ Failed to update collection sort order to default").Write()
+		}
+	}
+
+	return nil
+}
+
 // ── Folder Operations ─────────────────────────────────────────────────────────
 
 func toFolderResponse(f collection.CollectionFolder) collection.FolderResponse {
+	sortOrder := f.SortOrder
+	if sortOrder == "" {
+		sortOrder = collection.SortOrderDefault
+	}
+
 	return collection.FolderResponse{
 		ID:           f.ID,
 		CollectionID: f.CollectionID,
 		ParentID:     f.ParentID,
 		Name:         f.Name,
 		Slug:         f.Slug,
+		SortOrder:    sortOrder,
 		Idx:          f.Idx,
 	}
 }
@@ -346,6 +471,7 @@ func (u *collectionUsecase) CreateFolder(ctx context.Context, payload collection
 		ParentID:     payload.ParentID,
 		Name:         payload.Name,
 		Slug:         slug,
+		SortOrder:    collection.SortOrderDefault,
 		Idx:          int(count),
 	}
 
@@ -419,6 +545,7 @@ func (u *collectionUsecase) DuplicateFolder(ctx context.Context, ID uuid.UUID) (
 		ParentID:     folder.ParentID,
 		Name:         folder.Name + " (copy)",
 		Slug:         folder.Slug + "-copy",
+		SortOrder:    folder.SortOrder,
 		Idx:          folder.Idx + 1,
 	}
 
@@ -449,6 +576,7 @@ func (u *collectionUsecase) DuplicateFolder(ctx context.Context, ID uuid.UUID) (
 			ParentID:     &newParentID,
 			Name:         f.Name,
 			Slug:         f.Slug,
+			SortOrder:    f.SortOrder,
 			Idx:          f.Idx,
 		}
 	}
@@ -507,6 +635,26 @@ func (u *collectionUsecase) DuplicateFolder(ctx context.Context, ID uuid.UUID) (
 	}
 
 	res := toFolderResponse(inserted)
+	return &res, nil
+}
+
+func (u *collectionUsecase) UpdateFolderSortOrder(ctx context.Context, ID uuid.UUID, sortOrder string) (*collection.FolderResponse, error) {
+	_, err := u.getFolderEntity(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
+
+	update := map[string]any{
+		"sort_order": sortOrder,
+	}
+
+	folder, err := u.folderRepo.UpdateById(ctx, ID, update, nil)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to update folder sort order").Write()
+		return nil, err
+	}
+
+	res := toFolderResponse(folder)
 	return &res, nil
 }
 

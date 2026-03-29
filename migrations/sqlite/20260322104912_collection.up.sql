@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS collections (
     name VARCHAR NOT NULL,
     slug VARCHAR NOT NULL,
     is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
+    sort_order VARCHAR NOT NULL DEFAULT 'default',
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE

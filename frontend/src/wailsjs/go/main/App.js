@@ -102,6 +102,10 @@ export function RenameWorkspace(arg1, arg2) {
   return window['go']['main']['App']['RenameWorkspace'](arg1, arg2);
 }
 
+export function ReorderCollectionItems(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ReorderCollectionItems'](arg1, arg2, arg3);
+}
+
 export function SendRequest(arg1) {
   return window['go']['main']['App']['SendRequest'](arg1);
 }
@@ -110,8 +114,16 @@ export function UpdateCollectionFavorite(arg1, arg2) {
   return window['go']['main']['App']['UpdateCollectionFavorite'](arg1, arg2);
 }
 
+export function UpdateCollectionSortOrder(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UpdateCollectionSortOrder'](arg1, arg2, arg3);
+}
+
 export function UpdateEnvironment(arg1, arg2) {
   return window['go']['main']['App']['UpdateEnvironment'](arg1, arg2);
+}
+
+export function UpdateFolderSortOrder(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UpdateFolderSortOrder'](arg1, arg2, arg3);
 }
 
 export function UpdateRequest(arg1, arg2) {

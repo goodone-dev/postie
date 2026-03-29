@@ -55,10 +55,16 @@ export function RenameRequest(arg1:string,arg2:collection.RenameRequestRequest):
 
 export function RenameWorkspace(arg1:string,arg2:string):Promise<workspace.WorkspaceResponse>;
 
+export function ReorderCollectionItems(arg1:string,arg2:string,arg3:collection.ReorderItemsRequest):Promise<void>;
+
 export function SendRequest(arg1:main.ProxyPayload):Promise<main.ProxyResponse>;
 
 export function UpdateCollectionFavorite(arg1:string,arg2:boolean):Promise<collection.CollectionResponse>;
 
+export function UpdateCollectionSortOrder(arg1:string,arg2:string,arg3:string):Promise<collection.CollectionResponse>;
+
 export function UpdateEnvironment(arg1:string,arg2:environment.UpdateEnvironmentRequest):Promise<environment.EnvironmentResponse>;
+
+export function UpdateFolderSortOrder(arg1:string,arg2:string,arg3:string):Promise<collection.FolderResponse>;
 
 export function UpdateRequest(arg1:string,arg2:collection.UpdateRequestRequest):Promise<collection.RequestResponse>;
