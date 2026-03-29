@@ -54,7 +54,7 @@ func (a *App) GetWorkspace(id string) (*workspace.WorkspaceResponse, error) {
 		return nil, err
 	}
 
-	logger.Debugf(a.ctx, "Workspace '%s' found", ws.Name).Write()
+	logger.Debugf(a.ctx, "Workspace '%s' details loaded", ws.Name).Write()
 
 	return ws, nil
 }
@@ -131,7 +131,7 @@ func (a *App) GetCollection(id string) (*collection.CollectionResponse, error) {
 		return nil, err
 	}
 
-	logger.Debugf(a.ctx, "Collection '%s' found", collection.Name).Write()
+	logger.Debugf(a.ctx, "Collection '%s' details loaded", collection.Name).Write()
 
 	return collection, nil
 }
@@ -410,7 +410,7 @@ func (a *App) GetRequest(id string) (*collection.RequestResponse, error) {
 		return nil, err
 	}
 
-	logger.Debugf(a.ctx, "Request '%s %s' found", request.Method, request.Name).Write()
+	logger.Debugf(a.ctx, "Request '%s %s' details loaded", request.Method, request.Name).Write()
 
 	return request, nil
 }
