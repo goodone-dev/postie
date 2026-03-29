@@ -464,6 +464,7 @@ const EnvironmentPanel = ({ environments, setEnvironments, onOpenEnv, activeTabI
           <div style={{ padding: '32px 16px', textAlign: 'center' }}>
             <Globe size={32} style={{ color: '#444', margin: '0 auto 10px', display: 'block' }} />
             <p style={{ color: '#666', fontSize: 12 }}>No environments yet</p>
+            <p style={{ color: '#555', fontSize: 11 }}>Click + to create one</p>
           </div>
         )}
       </div>
@@ -783,7 +784,7 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     });
     newItems = resetSort(newItems);
     if (!targetParentId || (!sourceParentId && drag.colId === colId)) {
-       updatedColSortOrder = 'default';
+      updatedColSortOrder = 'default';
     }
 
     setCollections(prev => prev.map(c => c.id === colId ? { ...c, sortOrder: updatedColSortOrder, items: newItems } : c));

@@ -568,6 +568,41 @@ function App() {
     return options;
   };
 
+  const resolveCustomVariables = (str, req, env) => {
+    if (typeof str !== 'string' || !str) return str;
+    let res = str;
+    if (env && env.variables) {
+      env.variables.forEach(v => {
+        if (v.enabled && v.key) {
+          res = res.split(`{{${v.key}}}`).join(v.value || '');
+        }
+      });
+    }
+    if (req?.path_variables) {
+      req.path_variables.forEach(pv => {
+        if (pv.enabled && pv.key) {
+          const escapedKey = pv.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`:${escapedKey}(?=[/?&#]|$)`, 'g');
+          res = res.replace(regex, pv.value || '');
+        }
+      });
+    }
+    return res;
+  };
+
+  const resolveObjectVariables = (obj, req, env) => {
+    if (typeof obj === 'string') return resolveCustomVariables(obj, req, env);
+    if (Array.isArray(obj)) return obj.map(item => resolveObjectVariables(item, req, env));
+    if (obj !== null && typeof obj === 'object') {
+      const newObj = {};
+      for (const k in obj) {
+        newObj[k] = resolveObjectVariables(obj[k], req, env);
+      }
+      return newObj;
+    }
+    return obj;
+  };
+
   const sendRequest = async () => {
     if (!activeTab) return;
     const { request } = activeTab;
@@ -577,10 +612,12 @@ function App() {
 
     const startTime = Date.now();
     try {
-      let url = request.url;
+      const resolvedReq = resolveObjectVariables(request, request, selectedEnv);
+
+      let url = resolvedReq.url;
       if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
 
-      const options = buildFetchOptions(request);
+      const options = buildFetchOptions(resolvedReq);
 
       // Build body string for proxy
       let bodyStr = null;

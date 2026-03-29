@@ -28,10 +28,9 @@ const POST_SNIPPETS = [
 /* ─── PATH VAR EXTRACTOR ────────────────────────────────────── */
 const extractPathVars = (url) => {
   const vars = [], seen = new Set();
-  [/(?<!https?:)\/:([\w-]+)/g, /\{\{([\w-]+)\}\}/g].forEach(regex => {
-    let m;
-    while ((m = regex.exec(url)) !== null) { if (!seen.has(m[1])) { seen.add(m[1]); vars.push(m[1]); } }
-  });
+  const regex = /(?<!https?:)\/:([\w-]+)/g;
+  let m;
+  while ((m = regex.exec(url)) !== null) { if (!seen.has(m[1])) { seen.add(m[1]); vars.push(m[1]); } }
   return vars;
 };
 
@@ -89,9 +88,33 @@ const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending }) =
   const updateUrl = (url) => {
     try {
       const urlObj = new URL(url);
-      const params = [];
-      urlObj.searchParams.forEach((value, key) => params.push({ key, value, enabled: true }));
-      if (params.length > 0) { updateRequest({ url, params: [...params, { key: '', value: '', enabled: true }] }); return; }
+      const newParams = [];
+      const existingParams = request.params || [];
+      const usedIndices = new Set();
+
+      urlObj.searchParams.forEach((value, key) => {
+        let matchIndex = existingParams.findIndex((p, idx) => !usedIndices.has(idx) && p.key === key && p.value === value);
+        if (matchIndex === -1) {
+          matchIndex = existingParams.findIndex((p, idx) => !usedIndices.has(idx) && p.key === key);
+        }
+
+        let description = '';
+        if (matchIndex !== -1) {
+          description = existingParams[matchIndex].description || '';
+          usedIndices.add(matchIndex);
+        }
+
+        newParams.push({ key, value, enabled: true, description });
+      });
+
+      existingParams.forEach((p, idx) => {
+        if (!usedIndices.has(idx) && (!p.enabled || (!p.key && !p.value))) {
+          newParams.push(p);
+        }
+      });
+
+      updateRequest({ url, params: newParams });
+      return;
     } catch { }
     updateRequest({ url });
   };
