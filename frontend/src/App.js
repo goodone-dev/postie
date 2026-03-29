@@ -59,10 +59,10 @@ const SaveRequestModal = ({ request, activeWorkspaceId, onClose, onSuccess }) =>
           let flat = [];
           for (const it of items) {
             if (it.type === 'folder' || (!it.method && it.items)) {
-              flat.push({ id: it.id, name: prefix + it.name });
+              flat.push({ id: it.id, name: prefix + "↳\u00A0" + it.name });
               // Indent children further
               if (it.items && it.items.length > 0) {
-                flat = flat.concat(flattenFolders(it.items, prefix + "\u00A0\u00A0\u00A0↳\u00A0"));
+                flat = flat.concat(flattenFolders(it.items, prefix + "\u00A0\u00A0\u00A0\u00A0"));
               }
             }
           }
