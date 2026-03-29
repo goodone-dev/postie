@@ -386,7 +386,7 @@ function App() {
   // Tab context menu
   const [tabCtx, setTabCtx] = useState(null);
   // Resizable sidebar
-  const [sidebarWidth, setSidebarWidth] = useState(260);
+  const [sidebarWidth, setSidebarWidth] = useState(300);
   const isResizingSidebar = useRef(false);
   // Resizable response panel
   const [responseHeight, setResponseHeight] = useState(300);
