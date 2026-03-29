@@ -649,28 +649,26 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
   }, [sidebarSignal]);
 
   const toggleColOpen = (colId) => {
-    setCollections(prev => {
-      const col = prev.find(c => c.id === colId);
-      if (!col) return prev;
-      const willOpen = !col.isOpen;
-      // Lazy-load the tree the first time this collection is expanded
-      if (willOpen && (!col.items || col.items.length === 0)) {
-        GetCollection(colId)
-          .then(data => {
-            if (data) {
-              setCollections(p => p.map(c =>
-                c.id === colId
-                  ? { ...c, isOpen: true, sortOrder: data.sort_order || c.sortOrder || 'default', items: (data.items || []).map(normalizeItem) }
-                  : c
-              ));
-            }
-          })
-          .catch(console.error);
-        // Optimistically show the collection as open (items will populate async)
-        return prev.map(c => c.id === colId ? { ...c, isOpen: true } : c);
-      }
-      return prev.map(c => c.id === colId ? { ...c, isOpen: willOpen } : c);
-    });
+    const col = collections.find(c => c.id === colId);
+    if (!col) return;
+    const willOpen = !col.isOpen;
+
+    if (willOpen && (!col.items || col.items.length === 0)) {
+      setCollections(prev => prev.map(c => c.id === colId ? { ...c, isOpen: true } : c));
+      GetCollection(colId)
+        .then(data => {
+          if (data) {
+            setCollections(p => p.map(c =>
+              c.id === colId
+                ? { ...c, isOpen: true, sortOrder: data.sort_order || c.sortOrder || 'default', items: (data.items || []).map(normalizeItem) }
+                : c
+            ));
+          }
+        })
+        .catch(console.error);
+    } else {
+      setCollections(prev => prev.map(c => c.id === colId ? { ...c, isOpen: willOpen } : c));
+    }
   };
   const toggleFolOpen = (colId, folId) => updateItemById(colId, folId, fol => ({ ...fol, isOpen: !fol.isOpen }));
   const toggleFav = (col) => {
@@ -689,105 +687,106 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
     e.preventDefault(); e.stopPropagation();
     if (!drag || drag.id === targetInfo.id || drag.colId !== targetInfo.colId) { onDragEnd(); return; }
     const colId = drag.colId;
-    setCollections(prev => prev.map(col => {
-      if (col.id !== colId) return col;
-      // Extract dragged item
-      let draggedItem = null;
-      const extractDeep = (items) => {
-        let result = [];
-        for (const it of items) {
-          if (it.id === drag.id) { draggedItem = it; continue; }
-          if (it.type === 'folder' && it.items) {
-            result.push({ ...it, items: extractDeep(it.items) });
-          } else {
-            result.push(it);
-          }
+    const col = collections.find(c => c.id === colId);
+    if (!col) { onDragEnd(); return; }
+
+    // Extract dragged item
+    let draggedItem = null;
+    const extractDeep = (items) => {
+      let result = [];
+      for (const it of items) {
+        if (it.id === drag.id) { draggedItem = it; continue; }
+        if (it.type === 'folder' && it.items) {
+          result.push({ ...it, items: extractDeep(it.items) });
+        } else {
+          result.push(it);
         }
-        return result;
-      };
-      let newItems = extractDeep(col.items);
-      if (!draggedItem) return col;
-      // Insert at target
-      let targetParentId = null;
-      const insertDeep = (items, tgtId, tgtFolId, insertType) => {
-        if (insertType === 'inside') {
-          return items.map(it => {
-            if (it.id === tgtId) {
-              targetParentId = tgtId;
-              return { ...it, isOpen: true, items: [...(it.items || []), draggedItem] };
-            }
-            if (it.type === 'folder' && it.items) return { ...it, items: insertDeep(it.items, tgtId, tgtFolId, insertType) };
-            return it;
-          });
-        }
-        // Find target in this level
-        const tgtIdx = items.findIndex(it => it.id === tgtId);
-        if (tgtIdx !== -1) {
-          targetParentId = tgtFolId || null;
-          const arr = [...items];
-          arr.splice(tgtIdx, 0, draggedItem);
-          return arr;
-        }
-        // Recurse into folders
+      }
+      return result;
+    };
+    let newItems = extractDeep(col.items);
+    if (!draggedItem) { onDragEnd(); return; }
+
+    // Insert at target
+    let targetParentId = null;
+    const insertDeep = (items, tgtId, tgtFolId, insertType) => {
+      if (insertType === 'inside') {
         return items.map(it => {
+          if (it.id === tgtId) {
+            targetParentId = tgtId;
+            return { ...it, isOpen: true, items: [...(it.items || []), draggedItem] };
+          }
           if (it.type === 'folder' && it.items) return { ...it, items: insertDeep(it.items, tgtId, tgtFolId, insertType) };
           return it;
         });
-      };
-      newItems = insertDeep(newItems, targetInfo.id, targetInfo.folId, targetInfo.type);
-
-      // Persist to DB: collect items at the target parent level
-      const collectItemsAtParent = (items, parentId) => {
-        if (!parentId) return items;
-        for (const it of items) {
-          if (it.id === parentId) return it.items || [];
-          if (it.type === 'folder' && it.items) {
-            const found = collectItemsAtParent(it.items, parentId);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-      const targetItems = targetParentId ? collectItemsAtParent(newItems, targetParentId) : newItems;
-      if (targetItems) {
-        const reorderPayload = {
-          parent_folder_id: targetParentId || null,
-          items: targetItems.map(it => ({ id: it.id, type: it.type || 'request' }))
-        };
-        ReorderCollectionItems(colId, col.name, reorderPayload).catch(console.error);
       }
-      // If source parent is different, also reorder source parent
-      const sourceParentId = drag.folId || null;
-      if (sourceParentId !== targetParentId) {
-        const sourceItems = sourceParentId ? collectItemsAtParent(newItems, sourceParentId) : newItems;
-        if (sourceItems) {
-          const srcPayload = {
-            parent_folder_id: sourceParentId || null,
-            items: sourceItems.map(it => ({ id: it.id, type: it.type || 'request' }))
-          };
-          ReorderCollectionItems(colId, col.name, srcPayload).catch(console.error);
-        }
+      // Find target in this level
+      const tgtIdx = items.findIndex(it => it.id === tgtId);
+      if (tgtIdx !== -1) {
+        targetParentId = tgtFolId || null;
+        const arr = [...items];
+        arr.splice(tgtIdx, 0, draggedItem);
+        return arr;
       }
-
-      // Reset sortOrder to 'default' for target and source parents since manual reordering overrides sorting
-      let updatedColSortOrder = col.sortOrder;
-      const resetSort = (arr) => arr.map(it => {
-        let updatedIt = it;
-        if (it.id === targetParentId || it.id === sourceParentId) {
-          updatedIt = { ...updatedIt, sortOrder: 'default' };
-        }
-        if (updatedIt.items) {
-          updatedIt = { ...updatedIt, items: resetSort(updatedIt.items) };
-        }
-        return updatedIt;
+      // Recurse into folders
+      return items.map(it => {
+        if (it.type === 'folder' && it.items) return { ...it, items: insertDeep(it.items, tgtId, tgtFolId, insertType) };
+        return it;
       });
-      newItems = resetSort(newItems);
-      if (!targetParentId || (!sourceParentId && drag.colId === colId)) {
-         updatedColSortOrder = 'default';
-      }
+    };
+    newItems = insertDeep(newItems, targetInfo.id, targetInfo.folId, targetInfo.type);
 
-      return { ...col, sortOrder: updatedColSortOrder, items: newItems };
-    }));
+    // Persist to DB: collect items at the target parent level
+    const collectItemsAtParent = (items, parentId) => {
+      if (!parentId) return items;
+      for (const it of items) {
+        if (it.id === parentId) return it.items || [];
+        if (it.type === 'folder' && it.items) {
+          const found = collectItemsAtParent(it.items, parentId);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    const targetItems = targetParentId ? collectItemsAtParent(newItems, targetParentId) : newItems;
+    if (targetItems) {
+      const reorderPayload = {
+        parent_folder_id: targetParentId || null,
+        items: targetItems.map(it => ({ id: it.id, type: it.type || 'request' }))
+      };
+      ReorderCollectionItems(colId, col.name, reorderPayload).catch(console.error);
+    }
+    // If source parent is different, also reorder source parent
+    const sourceParentId = drag.folId || null;
+    if (sourceParentId !== targetParentId) {
+      const sourceItems = sourceParentId ? collectItemsAtParent(newItems, sourceParentId) : newItems;
+      if (sourceItems) {
+        const srcPayload = {
+          parent_folder_id: sourceParentId || null,
+          items: sourceItems.map(it => ({ id: it.id, type: it.type || 'request' }))
+        };
+        ReorderCollectionItems(colId, col.name, srcPayload).catch(console.error);
+      }
+    }
+
+    // Reset sortOrder to 'default' for target and source parents since manual reordering overrides sorting
+    let updatedColSortOrder = col.sortOrder;
+    const resetSort = (arr) => arr.map(it => {
+      let updatedIt = it;
+      if (it.id === targetParentId || it.id === sourceParentId) {
+        updatedIt = { ...updatedIt, sortOrder: 'default' };
+      }
+      if (updatedIt.items) {
+        updatedIt = { ...updatedIt, items: resetSort(updatedIt.items) };
+      }
+      return updatedIt;
+    });
+    newItems = resetSort(newItems);
+    if (!targetParentId || (!sourceParentId && drag.colId === colId)) {
+       updatedColSortOrder = 'default';
+    }
+
+    setCollections(prev => prev.map(c => c.id === colId ? { ...c, sortOrder: updatedColSortOrder, items: newItems } : c));
     onDragEnd();
   };
 
@@ -840,35 +839,55 @@ const Sidebar = ({ onSelectRequest, activeRequestId, activeEnvTabIds, onOpenEnv,
         {
           icon: <FolderPlus size={12} />, label: 'Add Folder',
           action: () => {
-            const tempId = uid();
-            setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'folder', id: tempId, name: 'New Folder', isOpen: true, items: [] }] }));
-            startEdit(tempId, 'New Folder',
-              name => {
-                CreateFolder({ collection_id: col.id, parent_id: null, name })
-                  .then(f => {
-                    if (f) updateItemById(col.id, tempId, () => ({ type: 'folder', id: f.id, name: f.name, isOpen: true, items: [] }));
-                    else deleteItemById(col.id, tempId);
-                  }).catch(() => deleteItemById(col.id, tempId));
-              },
-              () => deleteItemById(col.id, tempId)
-            );
+            const addAction = () => {
+              const tempId = uid();
+              setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...(c.items || []), { type: 'folder', id: tempId, name: 'New Folder', isOpen: true, items: [] }] }));
+              startEdit(tempId, 'New Folder',
+                name => {
+                  CreateFolder({ collection_id: col.id, parent_id: null, name })
+                    .then(f => {
+                      if (f) updateItemById(col.id, tempId, () => ({ type: 'folder', id: f.id, name: f.name, isOpen: true, items: [] }));
+                      else deleteItemById(col.id, tempId);
+                    }).catch(() => deleteItemById(col.id, tempId));
+                },
+                () => deleteItemById(col.id, tempId)
+              );
+            };
+            if (!col.isOpen && (!col.items || col.items.length === 0)) {
+              GetCollection(col.id).then(data => {
+                if (data) setCollections(p => p.map(c => c.id === col.id ? { ...c, isOpen: true, sortOrder: data.sort_order || c.sortOrder || 'default', items: (data.items || []).map(normalizeItem) } : c));
+                addAction();
+              }).catch(() => addAction());
+            } else {
+              addAction();
+            }
           }
         },
         {
           icon: <Plus size={12} />, label: 'Add Request',
           action: () => {
-            const tempId = uid();
-            setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...c.items, { type: 'request', id: tempId, name: 'New Request', method: 'GET' }] }));
-            startEdit(tempId, 'New Request',
-              name => {
-                CreateRequest({ collection_id: col.id, name, method: 'GET', url: '', params: [], path_variables: [], headers: [], auth: { type: 'none' }, body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] } })
-                  .then(req => {
-                    if (req) updateItemById(col.id, tempId, () => normalizeItem({ ...req, type: 'request' }));
-                    else deleteItemById(col.id, tempId);
-                  }).catch(() => deleteItemById(col.id, tempId));
-              },
-              () => deleteItemById(col.id, tempId)
-            );
+            const addAction = () => {
+              const tempId = uid();
+              setCollections(prev => prev.map(c => c.id !== col.id ? c : { ...c, isOpen: true, items: [...(c.items || []), { type: 'request', id: tempId, name: 'New Request', method: 'GET' }] }));
+              startEdit(tempId, 'New Request',
+                name => {
+                  CreateRequest({ collection_id: col.id, name, method: 'GET', url: '', params: [], path_variables: [], headers: [], auth: { type: 'none' }, body: { type: 'none', raw: { type: 'JSON', value: '' }, form_data: [], url_encoded: [] } })
+                    .then(req => {
+                      if (req) updateItemById(col.id, tempId, () => normalizeItem({ ...req, type: 'request' }));
+                      else deleteItemById(col.id, tempId);
+                    }).catch(() => deleteItemById(col.id, tempId));
+                },
+                () => deleteItemById(col.id, tempId)
+              );
+            };
+            if (!col.isOpen && (!col.items || col.items.length === 0)) {
+              GetCollection(col.id).then(data => {
+                if (data) setCollections(p => p.map(c => c.id === col.id ? { ...c, isOpen: true, sortOrder: data.sort_order || c.sortOrder || 'default', items: (data.items || []).map(normalizeItem) } : c));
+                addAction();
+              }).catch(() => addAction());
+            } else {
+              addAction();
+            }
           }
         },
         'sep',
