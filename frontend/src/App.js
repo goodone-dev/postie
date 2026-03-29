@@ -108,18 +108,24 @@ const SaveRequestModal = ({ request, activeWorkspaceId, onClose, onSuccess }) =>
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{ width: 440, background: 'linear-gradient(145deg,#1a1a1a,#161616)', border: '1px solid #2a2a2a', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04)', overflow: 'hidden' }}>
+        <div style={{ height: 3, background: 'linear-gradient(90deg,#FF6C37,#f0a04b)' }} />
         {/* Header */}
-        <div style={{ padding: '18px 22px 16px', borderBottom: '1px solid #222', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ color: '#f0f0f0', fontWeight: 700, fontSize: 15, letterSpacing: '-.01em' }}>Save Request</div>
-            <div style={{ color: '#555', fontSize: 12, marginTop: 2 }}>Add to a collection to persist and organize</div>
+        <div style={{ padding: '18px 22px 16px', borderBottom: '1px solid #222', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,108,55,0.12)', border: '1px solid rgba(255,108,55,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+            <Save size={16} style={{ color: '#FF6C37' }} />
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', lineHeight: 1, transition: 'color .15s' }}
-            onMouseEnter={e => e.currentTarget.style.color = '#aaa'}
-            onMouseLeave={e => e.currentTarget.style.color = '#555'}
-          >✕</button>
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ color: '#f0f0f0', fontWeight: 700, fontSize: 15, letterSpacing: '-.01em' }}>Save Request</div>
+              <div style={{ color: '#555', fontSize: 12, marginTop: 2 }}>Add to a collection to persist and organize</div>
+            </div>
+            <button
+              onClick={onClose}
+              style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', lineHeight: 1, transition: 'color .15s' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#aaa'}
+              onMouseLeave={e => e.currentTarget.style.color = '#555'}
+            >✕</button>
+          </div>
         </div>
 
         {/* Body */}
@@ -199,37 +205,37 @@ const DeleteWorkspaceModal = ({ ws, onClose, onConfirm }) => {
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ width: 390, background: 'linear-gradient(145deg,#1a1a1a,#161616)', border: '1px solid #2a2a2a', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04)', overflow: 'hidden' }}>
+      <div style={{ width: 420, background: 'linear-gradient(145deg,#1a1a1a,#161616)', border: '1px solid #2a2a2a', borderRadius: 12, boxShadow: '0 32px 80px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04)', overflow: 'hidden' }}>
         <div style={{ height: 3, background: 'linear-gradient(90deg,#f93e3e,#ff6b35)' }} />
-        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid #1f1f1f', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(249,62,62,0.1)', border: '1px solid rgba(249,62,62,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '18px 22px 16px', borderBottom: '1px solid #222', display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(249,62,62,0.12)', border: '1px solid rgba(249,62,62,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f93e3e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
               <path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
             </svg>
           </div>
           <div>
-            <div style={{ color: '#f0f0f0', fontWeight: 700, fontSize: 14, letterSpacing: '-.01em' }}>Delete Workspace</div>
-            <div style={{ color: '#505050', fontSize: 11, marginTop: 2 }}>This action cannot be undone</div>
+            <div style={{ color: '#f0f0f0', fontWeight: 700, fontSize: 15, letterSpacing: '-.01em' }}>Delete Workspace</div>
+            <div style={{ color: '#555', fontSize: 12, marginTop: 2 }}>This action cannot be undone</div>
           </div>
         </div>
-        <div style={{ padding: '14px 20px 16px' }}>
+        <div style={{ padding: '16px 22px' }}>
           <div style={{ color: '#777', fontSize: 13, lineHeight: 1.65 }}>
             Delete <span style={{ color: '#e8a87c', fontWeight: 600 }}>"{ws.name}"</span>? All collections and requests inside will be permanently lost.
           </div>
         </div>
-        <div style={{ padding: '12px 20px 18px', borderTop: '1px solid #1f1f1f', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ padding: '14px 22px 18px', borderTop: '1px solid #1f1f1f', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button
             onClick={onClose}
             onMouseEnter={() => setHovered('cancel')} onMouseLeave={() => setHovered(null)}
-            style={{ background: hovered === 'cancel' ? '#252525' : 'none', border: '1px solid #2d2d2d', borderRadius: 6, padding: '6px 16px', color: '#aaa', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
+            style={{ background: hovered === 'cancel' ? '#252525' : 'none', border: '1px solid #2d2d2d', borderRadius: 6, padding: '7px 18px', color: '#aaa', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
           >Cancel</button>
           <button
             onClick={onConfirm}
             onMouseEnter={() => setHovered('delete')} onMouseLeave={() => setHovered(null)}
-            style={{ background: hovered === 'delete' ? '#d43030' : '#f93e3e', border: 'none', borderRadius: 6, padding: '6px 18px', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'background .15s', display: 'flex', alignItems: 'center', gap: 6 }}
+            style={{ background: hovered === 'delete' ? '#d43030' : '#f93e3e', border: 'none', borderRadius: 6, padding: '7px 20px', color: '#fff', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'background .15s', display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            <Trash2 size={12} style={{ marginBottom: 2 }} />
+            <Trash2 size={13} style={{ marginBottom: 2 }} />
             Delete
           </button>
         </div>
