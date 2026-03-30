@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/spf13/viper"
@@ -61,18 +63,26 @@ type HttpClientConfig struct {
 	RetryWaitTime time.Duration `mapstructure:"HTTP_CLIENT_RETRY_WAIT_TIME"`
 }
 
+var (
+	HomeDir, _ = os.UserHomeDir()
+	ConfigDir  = filepath.Join(HomeDir, ".postie")
+	ConfigPath = filepath.Join(ConfigDir, "config")
+)
+
 func Load() (err error) {
-	viper.AddConfigPath("./")
-	viper.AddConfigPath("../")
-	viper.AddConfigPath("../../")
-	viper.SetConfigName(".env")
-	viper.SetConfigType("env")
-	viper.AutomaticEnv()
+	viper.SetConfigName("config")
+	viper.AddConfigPath(ConfigDir)
+	viper.AddConfigPath(".")
 
 	setDefaultConfig()
 
 	if err = viper.ReadInConfig(); err != nil {
-		return
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return
+		}
+		if err = os.MkdirAll(ConfigDir, 0755); err == nil {
+			viper.SafeWriteConfigAs(ConfigPath)
+		}
 	}
 
 	// Unmarshal each section explicitly
@@ -109,7 +119,7 @@ func setDefaultConfig() {
 	viper.SetDefault("APP_ENV", "local")
 
 	// DB defaults
-	viper.SetDefault("DB_NAME", "postie.db")
+	viper.SetDefault("DB_NAME", filepath.Join(ConfigDir, "postie.db"))
 	viper.SetDefault("DB_AUTO_MIGRATE", true)
 	viper.SetDefault("DB_MAX_OPEN_CONNECTIONS", 10)
 	viper.SetDefault("DB_MAX_IDLE_CONNECTIONS", 10)
