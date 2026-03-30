@@ -24,7 +24,7 @@ import (
 	"gorm.io/gorm"
 )
 
-//go:embed all:frontend/dist
+//go:embed all:frontend/build
 var assets embed.FS
 
 func main() {
