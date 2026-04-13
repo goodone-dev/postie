@@ -1147,6 +1147,7 @@ function App() {
                   onSend={sendRequest}
                   onSave={saveRequest}
                   isSending={activeTab.isSending}
+                  activeEnvironment={selectedEnv}
                 />
                 {/* Response resize handle */}
                 <div

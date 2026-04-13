@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Plus, Trash2, Key } from 'lucide-react';
 import { HTTP_METHODS, METHOD_COLORS } from '../../mock';
+import EnvInput from './EnvInput';
 
 /* ─── RAW BODY PLACEHOLDERS ──────────────────────────────────── */
 const RAW_PLACEHOLDERS = {
@@ -35,7 +36,7 @@ const extractPathVars = (url) => {
 };
 
 /* ─── REQUEST PANEL ─────────────────────────────────────────── */
-const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending }) => {
+const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending, activeEnvironment }) => {
   const [activeTab, setActiveTab] = useState('params');
   const [methodDropdownOpen, setMethodDropdownOpen] = useState(false);
   const [comingSoonTip, setComingSoonTip] = useState(null); // { x, y, text }
@@ -202,9 +203,10 @@ const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending }) =
         </div>
 
         {/* URL Input */}
-        <input data-testid="url-input" value={request.url || ''} onChange={e => updateUrl(e.target.value)} onKeyDown={e => e.key === 'Enter' && onSend()}
+        <EnvInput testId="url-input" value={request.url || ''} onChange={updateUrl} onKeyDown={e => e.key === 'Enter' && onSend()}
           placeholder="Enter URL or paste text"
-          style={{ flex: 1, background: '#2d2d2d', border: '1px solid #3d3d3d', borderRadius: '4px', padding: '8px 12px', color: '#e0e0e0', fontSize: '13px', outline: 'none', fontFamily: '"Fira Code", "Consolas", monospace', transition: 'border-color 0.15s' }}
+          activeEnvironment={activeEnvironment}
+          style={{ flex: 1, background: '#2d2d2d', border: '1px solid #3d3d3d', borderRadius: '4px', padding: '8px 12px', fontSize: '13px', outline: 'none', fontFamily: '"Fira Code", "Consolas", monospace', transition: 'border-color 0.15s' }}
           onFocus={e => { e.target.style.borderColor = '#FF6C37'; }}
           onBlur={e => { e.target.style.borderColor = '#3d3d3d'; }}
         />
@@ -261,7 +263,7 @@ const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending }) =
         {activeTab === 'params' && (
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
             <KeyValueTable rows={request.params || []} onAdd={() => addRow('params')} onRemove={i => removeRow('params', i)}
-              onUpdate={(i, k, v) => updateRow('params', i, k, v)} keyPlaceholder="Key" valuePlaceholder="Value" title="Query Params" />
+              onUpdate={(i, k, v) => updateRow('params', i, k, v)} keyPlaceholder="Key" valuePlaceholder="Value" title="Query Params" activeEnvironment={activeEnvironment} />
             {pathVarKeys.length > 0 && (
               <div style={{ marginTop: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
@@ -277,8 +279,9 @@ const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending }) =
                   <div key={pv.key} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1.5fr 28px', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
                     <input type="checkbox" checked={pv.enabled} onChange={e => updatePathVar(i, 'enabled', e.target.checked)} style={{ accentColor: '#FF6C37', width: '14px', height: '14px', margin: '0 auto', cursor: 'pointer' }} />
                     <div style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: '#e8a87c', fontSize: '12px', fontFamily: '"Fira Code", monospace' }}>:{pv.key}</div>
-                    <input value={pv.value} onChange={e => updatePathVar(i, 'value', e.target.value)} placeholder="Value"
-                      style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: '#e0e0e0', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
+                    <EnvInput value={pv.value} onChange={val => updatePathVar(i, 'value', val)} placeholder="Value"
+                      activeEnvironment={activeEnvironment}
+                      style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
                       onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
                     <input value={pv.description || ''} onChange={e => updatePathVar(i, 'description', e.target.value)} placeholder="Description"
                       style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: '#e0e0e0', fontSize: '12px', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
@@ -295,7 +298,7 @@ const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending }) =
         {activeTab === 'headers' && (
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
             <KeyValueTable rows={request.headers || []} onAdd={() => addRow('headers')} onRemove={i => removeRow('headers', i)}
-              onUpdate={(i, k, v) => updateRow('headers', i, k, v)} keyPlaceholder="Header Key" valuePlaceholder="Header Value" title="Headers" />
+              onUpdate={(i, k, v) => updateRow('headers', i, k, v)} keyPlaceholder="Header Key" valuePlaceholder="Header Value" title="Headers" activeEnvironment={activeEnvironment} />
           </div>
         )}
 
@@ -328,13 +331,13 @@ const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending }) =
             )}
             {request.body.type === 'form-data' && (
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-                <FormDataTable rows={request.body.form_data || []} onAdd={() => addBodyRow('form_data')} onRemove={i => removeBodyRow('form_data', i)} onUpdate={(i, k, v) => updateBodyRow('form_data', i, k, v)} />
+                <FormDataTable rows={request.body.form_data || []} onAdd={() => addBodyRow('form_data')} onRemove={i => removeBodyRow('form_data', i)} onUpdate={(i, k, v) => updateBodyRow('form_data', i, k, v)} activeEnvironment={activeEnvironment} />
               </div>
             )}
             {request.body.type === 'x-www-form-urlencoded' && (
               <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
                 <KeyValueTable rows={request.body.url_encoded || []} onAdd={() => addBodyRow('url_encoded')} onRemove={i => removeBodyRow('url_encoded', i)}
-                  onUpdate={(i, k, v) => updateBodyRow('url_encoded', i, k, v)} keyPlaceholder="Key" valuePlaceholder="Value" title="URL Encoded" />
+                  onUpdate={(i, k, v) => updateBodyRow('url_encoded', i, k, v)} keyPlaceholder="Key" valuePlaceholder="Value" title="URL Encoded" activeEnvironment={activeEnvironment} />
               </div>
             )}
             {request.body.type === 'binary' && (
@@ -495,7 +498,7 @@ const RequestPanel = ({ request, onRequestChange, onSend, onSave, isSending }) =
 };
 
 /* ─── FORM-DATA TABLE ─────────────────────────────────────────── */
-const FormDataTable = ({ rows, onAdd, onRemove, onUpdate }) => (
+const FormDataTable = ({ rows, onAdd, onRemove, onUpdate, activeEnvironment }) => (
   <div>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
       <span style={{ color: '#777', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Form Data</span>
@@ -526,8 +529,9 @@ const FormDataTable = ({ rows, onAdd, onRemove, onUpdate }) => (
             <input type="file" style={{ color: '#ccc', fontSize: '11px', width: '100%', cursor: 'pointer' }} />
           </div>
         ) : (
-          <input value={row.value} onChange={e => onUpdate(i, 'value', e.target.value)} placeholder="Value"
-            style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: row.enabled ? '#e0e0e0' : '#666', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
+          <EnvInput value={row.value} onChange={val => onUpdate(i, 'value', val)} placeholder="Value"
+            activeEnvironment={activeEnvironment}
+            style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
             onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
         )}
         <input value={row.description || ''} onChange={e => onUpdate(i, 'description', e.target.value)} placeholder="Description"
@@ -544,7 +548,7 @@ const FormDataTable = ({ rows, onAdd, onRemove, onUpdate }) => (
 );
 
 /* ─── KEY-VALUE TABLE ─────────────────────────────────────────── */
-const KeyValueTable = ({ rows, onAdd, onRemove, onUpdate, keyPlaceholder, valuePlaceholder, title }) => (
+const KeyValueTable = ({ rows, onAdd, onRemove, onUpdate, keyPlaceholder, valuePlaceholder, title, activeEnvironment }) => (
   <div>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
       <span style={{ color: '#777', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</span>
@@ -560,11 +564,13 @@ const KeyValueTable = ({ rows, onAdd, onRemove, onUpdate, keyPlaceholder, valueP
     {rows.map((row, i) => (
       <div key={i} style={{ display: 'grid', gridTemplateColumns: '24px 1fr 1fr 1.5fr 28px', gap: '4px', marginBottom: '4px', alignItems: 'center' }}>
         <input type="checkbox" checked={row.enabled} onChange={e => onUpdate(i, 'enabled', e.target.checked)} style={{ accentColor: '#FF6C37', width: '14px', height: '14px', margin: '0 auto', cursor: 'pointer' }} />
-        <input value={row.key} onChange={e => onUpdate(i, 'key', e.target.value)} placeholder={keyPlaceholder}
-          style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: row.enabled ? '#e0e0e0' : '#666', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
+        <EnvInput value={row.key} onChange={val => onUpdate(i, 'key', val)} placeholder={keyPlaceholder}
+          activeEnvironment={activeEnvironment}
+          style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
           onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
-        <input value={row.value} onChange={e => onUpdate(i, 'value', e.target.value)} placeholder={valuePlaceholder}
-          style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: row.enabled ? '#e0e0e0' : '#666', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
+        <EnvInput value={row.value} onChange={val => onUpdate(i, 'value', val)} placeholder={valuePlaceholder}
+          activeEnvironment={activeEnvironment}
+          style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', fontSize: '12px', outline: 'none', fontFamily: '"Fira Code", monospace', width: '100%', boxSizing: 'border-box' }}
           onFocus={e => { e.target.style.borderColor = '#FF6C37'; }} onBlur={e => { e.target.style.borderColor = '#333'; }} />
         <input value={row.description || ''} onChange={e => onUpdate(i, 'description', e.target.value)} placeholder="Description"
           style={{ background: '#2a2a2a', border: '1px solid #333', borderRadius: '3px', padding: '5px 8px', color: '#e0e0e0', fontSize: '12px', outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
