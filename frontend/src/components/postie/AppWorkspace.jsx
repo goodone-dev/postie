@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { TopBar } from '@/components/postman/TopBar';
-import { Sidebar } from '@/components/postman/Sidebar';
-import { RequestTabsBar } from '@/components/postman/RequestTabsBar';
-import { RequestPanel } from '@/components/postman/RequestPanel';
-import { ResponsePanel } from '@/components/postman/ResponsePanel';
-import { EnvironmentEditor } from '@/components/postman/EnvironmentEditor';
-import { ConfirmDialog, MoveDialog } from '@/components/postman/CrudDialogs';
+import { TopBar } from '@/components/postie/TopBar';
+import { Sidebar } from '@/components/postie/Sidebar';
+import { RequestTabsBar } from '@/components/postie/RequestTabsBar';
+import { RequestPanel } from '@/components/postie/RequestPanel';
+import { ResponsePanel } from '@/components/postie/ResponsePanel';
+import { EnvironmentEditor } from '@/components/postie/EnvironmentEditor';
+import { ConfirmDialog, MoveDialog } from '@/components/postie/CrudDialogs';
 import { generateMockResponse } from '@/data/mockData';
 import { useWorkspaceData } from '@/hooks/useWorkspaceData';
 import { useTabs } from '@/hooks/useTabs';
@@ -18,7 +18,7 @@ function useConfirmDialog() {
     return { confirm, setConfirm, openConfirm };
 }
 
-export default function PostmanWorkspace() {
+export default function AppWorkspace() {
     const data = useWorkspaceData();
     const tabsApi = useTabs();
     const { confirm, setConfirm, openConfirm } = useConfirmDialog();

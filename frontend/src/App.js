@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import PostmanWorkspace from '@/components/postman/PostmanWorkspace';
+import AppWorkspace from '@/components/postie/AppWorkspace';
 import { Toaster } from '@/components/ui/sonner';
 
 function App() {
@@ -7,8 +7,8 @@ function App() {
         <div className="App">
             <BrowserRouter>
                 <Routes>
-                    <Route path="/" element={<PostmanWorkspace />} />
-                    <Route path="*" element={<PostmanWorkspace />} />
+                    <Route path="/" element={<AppWorkspace />} />
+                    <Route path="*" element={<AppWorkspace />} />
                 </Routes>
             </BrowserRouter>
             <Toaster />
