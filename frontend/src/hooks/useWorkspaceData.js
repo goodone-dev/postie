@@ -12,6 +12,12 @@ import {
     cloneFolder,
     cloneEnvironment,
 } from '@/data/mockData';
+import {
+    ListWorkspaces,
+    CreateWorkspace,
+    RenameWorkspace,
+    DeleteWorkspace
+} from '@/wailsjs/go/main/App';
 
 // ---- Collection / folder / request CRUD factory ----
 function makeCollectionCrud(setCollections) {
@@ -152,17 +158,36 @@ function makeEnvironmentCrud(setEnvironments) {
 // ---- Workspace CRUD factory ----
 function makeWorkspaceCrud({ workspaces, setWorkspaces, activeWorkspaceId, setActiveWorkspaceId }) {
     return {
-        addWorkspace: (name) => {
-            const w = newWorkspace(name);
-            setWorkspaces((prev) => [...prev, w]);
-            setActiveWorkspaceId(w.id);
+        addWorkspace: async (name) => {
+            try {
+                const res = await CreateWorkspace({ name });
+                const newWs = { ...res, collections: [], environments: [] };
+                setWorkspaces((prev) => [...prev, newWs]);
+                setActiveWorkspaceId(newWs.id);
+            } catch (err) {
+                console.error("Failed to create workspace:", err);
+            }
         },
-        renameWorkspace: (id, name) => setWorkspaces((prev) => prev.map((w) => (w.id === id ? { ...w, name } : w))),
-        deleteWorkspace: (id) => {
+        renameWorkspace: async (id, name) => {
+            try {
+                await RenameWorkspace(id, name);
+                setWorkspaces((prev) => prev.map((w) => (w.id === id ? { ...w, name } : w)));
+            } catch (err) {
+                console.error("Failed to rename workspace:", err);
+            }
+        },
+        deleteWorkspace: async (id) => {
             if (workspaces.length <= 1) return;
-            const remaining = workspaces.filter((w) => w.id !== id);
-            setWorkspaces(remaining);
-            if (id === activeWorkspaceId) setActiveWorkspaceId(remaining[0].id);
+            const w = workspaces.find((ws) => ws.id === id);
+            if (!w) return;
+            try {
+                await DeleteWorkspace(id, w.name);
+                const remaining = workspaces.filter((ws) => ws.id !== id);
+                setWorkspaces(remaining);
+                if (id === activeWorkspaceId) setActiveWorkspaceId(remaining[0].id);
+            } catch (err) {
+                console.error("Failed to delete workspace:", err);
+            }
         },
         selectWorkspace: (id) => setActiveWorkspaceId(id),
         // Move a collection from the active workspace to another workspace
@@ -190,6 +215,28 @@ export function useWorkspaceData() {
         return list.some((w) => w.id === saved) ? saved : list[0].id;
     });
     const [history, setHistory] = useState(() => loadState('history', initialHistory));
+
+    useEffect(() => {
+        ListWorkspaces().then(res => {
+            if (res && res.length > 0) {
+                setWorkspaces(prevWs => {
+                    const mapped = res.map(w => {
+                        const existing = prevWs.find(pw => pw.id === w.id);
+                        return {
+                            ...w,
+                            collections: existing?.collections || [],
+                            environments: existing?.environments || []
+                        };
+                    });
+                    return mapped;
+                });
+                
+                setActiveWorkspaceId(currentId => {
+                    return res.some(w => w.id === currentId) ? currentId : res[0].id;
+                });
+            }
+        }).catch(err => console.error("Failed to list workspaces", err));
+    }, []);
 
     useEffect(() => saveState('workspaces', workspaces), [workspaces]);
     useEffect(() => saveState('activeWorkspaceId', activeWorkspaceId), [activeWorkspaceId]);
