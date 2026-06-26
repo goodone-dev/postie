@@ -169,8 +169,8 @@ export const Sidebar = ({ data, onOpenRequest, onOpenEnvironment, onMove, active
                                             item.disabled
                                                 ? 'text-muted-foreground/40 cursor-not-allowed'
                                                 : isActive
-                                                  ? 'text-primary bg-primary-soft'
-                                                  : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground',
+                                                    ? 'text-primary bg-primary-soft'
+                                                    : 'text-muted-foreground hover:bg-sidebar-hover hover:text-foreground',
                                         )}
                                     >
                                         <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
@@ -233,7 +233,7 @@ function makeDnd(dragRef, data) {
             e.dataTransfer.effectAllowed = 'move';
             try {
                 e.dataTransfer.setData('text/plain', payload.kind);
-            } catch (_) {}
+            } catch (_) { }
         }
         e.stopPropagation();
     };
@@ -513,9 +513,9 @@ const EnvironmentsView = ({ data, editApi, onOpenEnvironment, openConfirm }) => 
             {data.environments.map((e) => {
                 const isRenaming = edit?.mode === 'rename' && edit.kind === 'environment' && edit.id === e.id;
                 const items = [
+                    { label: 'Set active', icon: CheckCircle2, testId: `environment-activate-${e.id}`, onClick: () => data.setActiveEnvironment(e.id) },
                     { label: 'Rename', icon: Pencil, testId: `environment-rename-${e.id}`, onClick: () => editApi.startRename('environment', e.id) },
                     { label: 'Duplicate', icon: Copy, testId: `environment-duplicate-${e.id}`, onClick: () => data.duplicateEnvironment(e.id) },
-                    { label: 'Set active', icon: CheckCircle2, testId: `environment-activate-${e.id}`, onClick: () => data.setActiveEnvironment(e.id) },
                     { separator: true },
                     { label: 'Delete', icon: Trash2, danger: true, testId: `environment-delete-${e.id}`, onClick: () => openConfirm({ title: `Delete "${e.name}"?`, description: 'This environment will be removed.', onConfirm: () => data.deleteEnvironment(e.id) }) },
                 ];

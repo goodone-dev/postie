@@ -16,7 +16,12 @@ import {
     ListWorkspaces,
     CreateWorkspace,
     RenameWorkspace,
-    DeleteWorkspace
+    DeleteWorkspace,
+    ListEnvironments,
+    CreateEnvironment,
+    UpdateEnvironment,
+    DeleteEnvironment,
+    DuplicateEnvironment
 } from '@/wailsjs/go/main/App';
 
 // ---- Collection / folder / request CRUD factory ----
@@ -135,23 +140,61 @@ function makeCollectionCrud(setCollections) {
 }
 
 // ---- Environment CRUD factory ----
-function makeEnvironmentCrud(setEnvironments) {
+function makeEnvironmentCrud({ setEnvironments, activeWorkspaceId, environments }) {
     return {
-        addEnvironment: (name) => setEnvironments((es) => [...es, newEnvironment(name)]),
-        renameEnvironment: (id, name) => setEnvironments((es) => es.map((e) => (e.id === id ? { ...e, name } : e))),
-        deleteEnvironment: (id) => setEnvironments((es) => es.filter((e) => e.id !== id)),
+        addEnvironment: async (name) => {
+            try {
+                const res = await CreateEnvironment({ workspace_id: activeWorkspaceId, name, variables: [] });
+                setEnvironments((es) => [...es, res]);
+            } catch (err) {
+                console.error("Failed to add environment", err);
+            }
+        },
+        renameEnvironment: async (id, name) => {
+            try {
+                const env = environments.find(e => e.id === id);
+                if (!env) return;
+                const res = await UpdateEnvironment(id, { name, variables: env.variables || [] });
+                setEnvironments((es) => es.map((e) => (e.id === id ? { ...e, name: res.name } : e)));
+            } catch (err) {
+                console.error("Failed to rename environment", err);
+            }
+        },
+        deleteEnvironment: async (id) => {
+            try {
+                const env = environments.find(e => e.id === id);
+                if (!env) return;
+                await DeleteEnvironment(id, env.name);
+                setEnvironments((es) => es.filter((e) => e.id !== id));
+            } catch (err) {
+                console.error("Failed to delete environment", err);
+            }
+        },
         setActiveEnvironment: (id) => setEnvironments((es) => es.map((e) => ({ ...e, active: e.id === id }))),
-        duplicateEnvironment: (id) =>
-            setEnvironments((es) => {
-                const idx = es.findIndex((e) => e.id === id);
-                if (idx < 0) return es;
-                const copy = cloneEnvironment(es[idx]);
-                const next = [...es];
-                next.splice(idx + 1, 0, copy);
-                return next;
-            }),
-        updateEnvironmentVariables: (id, variables) =>
-            setEnvironments((es) => es.map((e) => (e.id === id ? { ...e, variables } : e))),
+        duplicateEnvironment: async (id) => {
+            try {
+                const res = await DuplicateEnvironment(id);
+                setEnvironments((es) => {
+                    const idx = es.findIndex((e) => e.id === id);
+                    if (idx < 0) return [...es, res];
+                    const next = [...es];
+                    next.splice(idx + 1, 0, res);
+                    return next;
+                });
+            } catch (err) {
+                console.error("Failed to duplicate environment", err);
+            }
+        },
+        updateEnvironmentVariables: async (id, variables) => {
+            try {
+                const env = environments.find(e => e.id === id);
+                if (!env) return;
+                const res = await UpdateEnvironment(id, { name: env.name, variables });
+                setEnvironments((es) => es.map((e) => (e.id === id ? { ...e, variables: res.variables } : e)));
+            } catch (err) {
+                console.error("Failed to update environment variables", err);
+            }
+        },
     };
 }
 
@@ -237,7 +280,23 @@ export function useWorkspaceData() {
             }
         }).catch(err => console.error("Failed to list workspaces", err));
     }, []);
-
+    useEffect(() => {
+        if (!activeWorkspaceId) return;
+        ListEnvironments(activeWorkspaceId).then(res => {
+            setWorkspaces(prevWs => prevWs.map(w => {
+                if (w.id === activeWorkspaceId) {
+                    const oldEnvs = w.environments || [];
+                    const activeEnvId = oldEnvs.find(e => e.active)?.id;
+                    const newEnvs = (res || []).map(e => ({
+                        ...e,
+                        active: e.id === activeEnvId
+                    }));
+                    return { ...w, environments: newEnvs };
+                }
+                return w;
+            }));
+        }).catch(err => console.error("Failed to list environments:", err));
+    }, [activeWorkspaceId]);
     useEffect(() => saveState('workspaces', workspaces), [workspaces]);
     useEffect(() => saveState('activeWorkspaceId', activeWorkspaceId), [activeWorkspaceId]);
     useEffect(() => saveState('history', history), [history]);
@@ -271,6 +330,6 @@ export function useWorkspaceData() {
         setHistory,
         ...makeWorkspaceCrud({ workspaces, setWorkspaces, activeWorkspaceId, setActiveWorkspaceId }),
         ...makeCollectionCrud(setCollections),
-        ...makeEnvironmentCrud(setEnvironments),
+        ...makeEnvironmentCrud({ setEnvironments, activeWorkspaceId, environments: activeWorkspace.environments }),
     };
 }
