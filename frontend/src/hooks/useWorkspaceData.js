@@ -17,6 +17,7 @@ import {
     DeleteCollection,
     DuplicateCollection,
     UpdateCollectionFavorite,
+    MoveCollection,
     CreateFolder,
     RenameFolder,
     DeleteFolder,
@@ -27,23 +28,45 @@ import {
     DuplicateRequest
 } from '@/wailsjs/go/main/App';
 
-// ---- Collection / folder / request CRUD factory ----
-function makeCollectionCrud({ setCollections, activeWorkspaceId, collections, refreshCollections, refreshCollection }) {
-    const mapCol = (colId, fn) => setCollections((cs) => cs.map((c) => (c.id === colId ? fn(c) : c)));
-    const mapFolder = (colId, folderId, fn) => {
-        const updateFolders = (folders) => (folders || []).map(f => {
+// ---- helpers ----
+const mapCol = (setCollections, colId, fn) =>
+    setCollections((cs) => cs.map((c) => (c.id === colId ? fn(c) : c)));
+
+const mapFolder = (setCollections, colId, folderId, fn) => {
+    const updateFolders = (folders) =>
+        (folders || []).map((f) => {
             if (f.id === folderId) return fn(f);
             if (f.folders) return { ...f, folders: updateFolders(f.folders) };
             return f;
         });
-        return mapCol(colId, (c) => ({ ...c, folders: updateFolders(c.folders) }));
-    };
+    mapCol(setCollections, colId, (c) => ({ ...c, folders: updateFolders(c.folders) }));
+};
 
+const findFolder = (folders, id) => {
+    if (!folders) return undefined;
+    for (const f of folders) {
+        if (f.id === id) return f;
+        const found = findFolder(f.folders, id);
+        if (found) return found;
+    }
+    return undefined;
+};
+
+// ---- Collection / folder / request CRUD factory ----
+function makeCollectionCrud({ collections, setCollections, activeWorkspaceId }) {
     return {
+        // ---- Collections ----
         addCollection: async (name) => {
             try {
-                await CreateCollection({ workspace_id: activeWorkspaceId, name });
-                refreshCollections();
+                const res = await CreateCollection({ workspace_id: activeWorkspaceId, name });
+                setCollections((cs) => [...cs, {
+                    ...res,
+                    favorite: res.is_favorite ?? false,
+                    folders: res.folders ?? [],
+                    requests: res.requests ?? [],
+                    expanded: false,
+                    loaded: false,
+                }]);
             } catch (err) {
                 console.error("Failed to create collection:", err);
             }
@@ -51,72 +74,171 @@ function makeCollectionCrud({ setCollections, activeWorkspaceId, collections, re
         renameCollection: async (id, name) => {
             try {
                 await RenameCollection(id, name);
-                refreshCollection(id);
+                mapCol(setCollections, id, (c) => ({ ...c, name }));
             } catch (err) {
                 console.error("Failed to rename collection:", err);
             }
         },
         deleteCollection: async (id) => {
             try {
-                const col = collections.find(c => c.id === id);
+                const col = collections.find((c) => c.id === id);
                 if (!col) return;
                 await DeleteCollection(id, col.name);
-                refreshCollections();
+                setCollections((cs) => cs.filter((c) => c.id !== id));
             } catch (err) {
                 console.error("Failed to delete collection:", err);
             }
         },
-        toggleCollection: (id) => mapCol(id, (c) => ({ ...c, expanded: !c.expanded })),
-        collapseCollection: (id) => mapCol(id, (c) => ({ ...c, expanded: false })),
+        // Toggle open: fetch full data on first open, then just flip expanded flag
+        toggleCollection: async (id) => {
+            try {
+                const col = collections.find((c) => c.id === id);
+                const willExpand = !col?.expanded;
+                if (willExpand && !col?.loaded) {
+                    const c = await GetCollection(id);
+                    setCollections((cs) => {
+                        const old = cs.find((oc) => oc.id === id);
+                        const mapFolders = (folders) =>
+                            (folders || []).map((f) => {
+                                const oldFolder = findFolder(old?.folders, f.id);
+                                return {
+                                    ...f,
+                                    expanded: oldFolder?.expanded ?? false,
+                                    folders: mapFolders(f.folders),
+                                    requests: f.requests || [],
+                                };
+                            });
+                        const updated = {
+                            ...c,
+                            favorite: c.is_favorite,
+                            folders: mapFolders(c.folders),
+                            requests: c.requests || [],
+                            expanded: true,
+                            loaded: true,
+                        };
+                        return cs.map((oc) => (oc.id === id ? updated : oc));
+                    });
+                } else {
+                    mapCol(setCollections, id, (c) => ({ ...c, expanded: willExpand }));
+                }
+            } catch (err) {
+                console.error("Failed to toggle collection:", err);
+            }
+        },
+        collapseCollection: (id) => mapCol(setCollections, id, (c) => ({ ...c, expanded: false })),
         toggleFavorite: async (id) => {
             try {
-                const col = collections.find(c => c.id === id);
+                const col = collections.find((c) => c.id === id);
                 if (!col) return;
-                await UpdateCollectionFavorite(id, !col.favorite);
-                refreshCollection(id);
+                const newFav = !col.favorite;
+                await UpdateCollectionFavorite(id, newFav);
+                mapCol(setCollections, id, (c) => ({ ...c, favorite: newFav }));
             } catch (err) {
                 console.error("Failed to toggle favorite:", err);
             }
         },
         duplicateCollection: async (id) => {
             try {
-                await DuplicateCollection(id);
-                refreshCollections();
+                const res = await DuplicateCollection(id);
+                setCollections((cs) => {
+                    const idx = cs.findIndex((c) => c.id === id);
+                    const newCol = {
+                        ...res,
+                        favorite: res.is_favorite ?? false,
+                        folders: res.folders ?? [],
+                        requests: res.requests ?? [],
+                        expanded: false,
+                        loaded: false,
+                    };
+                    if (idx < 0) return [...cs, newCol];
+                    const next = [...cs];
+                    next.splice(idx + 1, 0, newCol);
+                    return next;
+                });
             } catch (err) {
                 console.error("Failed to duplicate collection:", err);
             }
         },
+        moveCollection: async (colId, targetWorkspaceId) => {
+            try {
+                await MoveCollection(colId, { target_workspace_id: targetWorkspaceId });
+                setCollections((cs) => cs.filter((c) => c.id !== colId));
+            } catch (err) {
+                console.error("Failed to move collection:", err);
+            }
+        },
+
+        // ---- Folders ----
         addFolder: async (colId, name, parentFolderId) => {
             try {
                 const payload = { collection_id: colId, name };
                 if (parentFolderId) payload.parent_id = parentFolderId;
-                await CreateFolder(payload);
-                refreshCollection(colId);
-            } catch (err) { console.error("Failed to add folder", err); }
+                const res = await CreateFolder(payload);
+                const newFolder = { ...res, expanded: false, folders: res.folders ?? [], requests: res.requests ?? [] };
+                if (parentFolderId) {
+                    mapFolder(setCollections, colId, parentFolderId, (f) => ({
+                        ...f,
+                        folders: [...(f.folders || []), newFolder],
+                    }));
+                } else {
+                    mapCol(setCollections, colId, (c) => ({
+                        ...c,
+                        folders: [...(c.folders || []), newFolder],
+                    }));
+                }
+            } catch (err) {
+                console.error("Failed to add folder", err);
+            }
         },
         renameFolder: async (colId, folderId, name) => {
             try {
                 await RenameFolder(folderId, { name });
-                refreshCollection(colId);
-            } catch (err) { console.error("Failed to rename folder", err); }
+                mapFolder(setCollections, colId, folderId, (f) => ({ ...f, name }));
+            } catch (err) {
+                console.error("Failed to rename folder", err);
+            }
         },
         deleteFolder: async (colId, folderId) => {
             try {
-                const col = collections.find(c => c.id === colId);
-                const folder = col?.folders?.find(f => f.id === folderId);
+                const col = collections.find((c) => c.id === colId);
+                const folder = findFolder(col?.folders, folderId);
                 if (!folder) return;
                 await DeleteFolder(folderId, folder.name);
-                refreshCollection(colId);
-            } catch (err) { console.error("Failed to delete folder", err); }
+                const removeFolderFromList = (folders) =>
+                    (folders || [])
+                        .filter((f) => f.id !== folderId)
+                        .map((f) => ({ ...f, folders: removeFolderFromList(f.folders) }));
+                mapCol(setCollections, colId, (c) => ({
+                    ...c,
+                    folders: removeFolderFromList(c.folders),
+                }));
+            } catch (err) {
+                console.error("Failed to delete folder", err);
+            }
         },
-        toggleFolder: (colId, folderId) => mapFolder(colId, folderId, (f) => ({ ...f, expanded: !f.expanded })),
-        collapseFolder: (colId, folderId) => mapFolder(colId, folderId, (f) => ({ ...f, expanded: false })),
+        toggleFolder: (colId, folderId) => mapFolder(setCollections, colId, folderId, (f) => ({ ...f, expanded: !f.expanded })),
+        collapseFolder: (colId, folderId) => mapFolder(setCollections, colId, folderId, (f) => ({ ...f, expanded: false })),
         duplicateFolder: async (colId, folderId) => {
             try {
-                await DuplicateFolder(folderId);
-                refreshCollection(colId);
-            } catch (err) { console.error("Failed to duplicate folder", err); }
+                const res = await DuplicateFolder(folderId);
+                const newFolder = { ...res, expanded: false, folders: res.folders ?? [], requests: res.requests ?? [] };
+                mapCol(setCollections, colId, (c) => {
+                    const insertAfter = (folders) => {
+                        const out = [];
+                        for (const f of folders || []) {
+                            out.push({ ...f, folders: insertAfter(f.folders) });
+                            if (f.id === folderId) out.push(newFolder);
+                        }
+                        return out;
+                    };
+                    return { ...c, folders: insertAfter(c.folders) };
+                });
+            } catch (err) {
+                console.error("Failed to duplicate folder", err);
+            }
         },
+
+        // ---- Requests ----
         addRequest: async (colId, folderId, req) => {
             try {
                 const reqData = {
@@ -127,30 +249,82 @@ function makeCollectionCrud({ setCollections, activeWorkspaceId, collections, re
                     url: typeof req === 'string' ? '' : req.url || '',
                     params: [], path_variables: [], auth: { type: 'none' }, headers: [], body: { type: 'none' }
                 };
-                await CreateRequest(reqData);
-                refreshCollection(colId);
-            } catch (err) { console.error("Failed to add request", err); }
+                const res = await CreateRequest(reqData);
+                if (folderId) {
+                    mapFolder(setCollections, colId, folderId, (f) => ({
+                        ...f,
+                        requests: [...(f.requests || []), res],
+                    }));
+                } else {
+                    mapCol(setCollections, colId, (c) => ({
+                        ...c,
+                        requests: [...(c.requests || []), res],
+                    }));
+                }
+            } catch (err) {
+                console.error("Failed to add request", err);
+            }
         },
         renameRequest: async (colId, folderId, reqId, name) => {
             try {
                 await RenameRequest(reqId, { name });
-                refreshCollection(colId);
-            } catch (err) { console.error("Failed to rename request", err); }
+                if (folderId) {
+                    mapFolder(setCollections, colId, folderId, (f) => ({
+                        ...f,
+                        requests: (f.requests || []).map((r) => (r.id === reqId ? { ...r, name } : r)),
+                    }));
+                } else {
+                    mapCol(setCollections, colId, (c) => ({
+                        ...c,
+                        requests: (c.requests || []).map((r) => (r.id === reqId ? { ...r, name } : r)),
+                    }));
+                }
+            } catch (err) {
+                console.error("Failed to rename request", err);
+            }
         },
         deleteRequest: async (colId, folderId, reqId) => {
             try {
-                const col = collections.find(c => c.id === colId);
-                const folder = col?.folders?.find(f => f.id === folderId);
-                const req = folder?.requests?.find(r => r.id === reqId);
+                const col = collections.find((c) => c.id === colId);
+                const folder = folderId ? findFolder(col?.folders, folderId) : null;
+                const req = (folder?.requests ?? col?.requests ?? []).find((r) => r.id === reqId);
                 await DeleteRequest(reqId, req?.method || 'GET', req?.name || 'Request');
-                refreshCollection(colId);
-            } catch (err) { console.error("Failed to delete request", err); }
+                if (folderId) {
+                    mapFolder(setCollections, colId, folderId, (f) => ({
+                        ...f,
+                        requests: (f.requests || []).filter((r) => r.id !== reqId),
+                    }));
+                } else {
+                    mapCol(setCollections, colId, (c) => ({
+                        ...c,
+                        requests: (c.requests || []).filter((r) => r.id !== reqId),
+                    }));
+                }
+            } catch (err) {
+                console.error("Failed to delete request", err);
+            }
         },
         duplicateRequest: async (colId, folderId, reqId) => {
             try {
-                await DuplicateRequest(reqId);
-                refreshCollection(colId);
-            } catch (err) { console.error("Failed to duplicate request", err); }
+                const res = await DuplicateRequest(reqId);
+                if (folderId) {
+                    mapFolder(setCollections, colId, folderId, (f) => {
+                        const reqs = [...(f.requests || [])];
+                        const idx = reqs.findIndex((r) => r.id === reqId);
+                        reqs.splice(idx < 0 ? reqs.length : idx + 1, 0, res);
+                        return { ...f, requests: reqs };
+                    });
+                } else {
+                    mapCol(setCollections, colId, (c) => {
+                        const reqs = [...(c.requests || [])];
+                        const idx = reqs.findIndex((r) => r.id === reqId);
+                        reqs.splice(idx < 0 ? reqs.length : idx + 1, 0, res);
+                        return { ...c, requests: reqs };
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to duplicate request", err);
+            }
         },
 
         // ---- Drag & drop moves (within the active workspace) ----
@@ -159,10 +333,10 @@ function makeCollectionCrud({ setCollections, activeWorkspaceId, collections, re
                 let moved = null;
                 const removed = cs.map((c) => ({
                     ...c,
-                    folders: c.folders.map((f) => {
+                    folders: (c.folders || []).map((f) => {
                         if (c.id === src.colId && f.id === src.folderId) {
-                            moved = f.requests.find((r) => r.id === src.reqId) || moved;
-                            return { ...f, requests: f.requests.filter((r) => r.id !== src.reqId) };
+                            moved = (f.requests || []).find((r) => r.id === src.reqId) || moved;
+                            return { ...f, requests: (f.requests || []).filter((r) => r.id !== src.reqId) };
                         }
                         return f;
                     }),
@@ -173,10 +347,11 @@ function makeCollectionCrud({ setCollections, activeWorkspaceId, collections, re
                     return {
                         ...c,
                         expanded: true,
-                        folders: c.folders.map((f) => {
+                        folders: (c.folders || []).map((f) => {
                             if (f.id !== dest.folderId) return f;
-                            if (!dest.beforeReqId) return { ...f, expanded: true, requests: [...f.requests, moved] };
-                            const arr = [...f.requests];
+                            const reqs = f.requests || [];
+                            if (!dest.beforeReqId) return { ...f, expanded: true, requests: [...reqs, moved] };
+                            const arr = [...reqs];
                             const i = arr.findIndex((r) => r.id === dest.beforeReqId);
                             arr.splice(i < 0 ? arr.length : i, 0, moved);
                             return { ...f, expanded: true, requests: arr };
@@ -189,13 +364,13 @@ function makeCollectionCrud({ setCollections, activeWorkspaceId, collections, re
                 let moved = null;
                 const removed = cs.map((c) =>
                     c.id === src.colId
-                        ? { ...c, folders: c.folders.filter((f) => (f.id === src.folderId ? ((moved = f), false) : true)) }
+                        ? { ...c, folders: (c.folders || []).filter((f) => (f.id === src.folderId ? ((moved = f), false) : true)) }
                         : c,
                 );
                 if (!moved) return cs;
                 return removed.map((c) => {
                     if (c.id !== dest.colId) return c;
-                    const arr = [...c.folders];
+                    const arr = [...(c.folders || [])];
                     if (!dest.beforeFolderId) arr.push(moved);
                     else {
                         const i = arr.findIndex((f) => f.id === dest.beforeFolderId);
@@ -208,37 +383,39 @@ function makeCollectionCrud({ setCollections, activeWorkspaceId, collections, re
 }
 
 // ---- Environment CRUD factory ----
-function makeEnvironmentCrud({ setEnvironments, activeWorkspaceId, environments }) {
+function makeEnvironmentCrud({ environments, setEnvironments, activeWorkspaceId, setActiveEnvironmentId }) {
     return {
-        addEnvironment: async (name) => {
+        createEnvironment: async (name) => {
+            if (!activeWorkspaceId) return;
+            const payload = { workspace_id: activeWorkspaceId, name: name || 'New Environment' };
             try {
-                const res = await CreateEnvironment({ workspace_id: activeWorkspaceId, name, variables: [] });
+                const res = await CreateEnvironment(payload);
                 setEnvironments((es) => [...es, res]);
             } catch (err) {
-                console.error("Failed to add environment", err);
+                console.error("CreateEnvironment failed:", err);
             }
         },
-        renameEnvironment: async (id, name) => {
+        updateEnvironment: async (id, patch) => {
             try {
-                const env = environments.find(e => e.id === id);
-                if (!env) return;
-                const res = await UpdateEnvironment(id, { name, variables: env.variables || [] });
-                setEnvironments((es) => es.map((e) => (e.id === id ? { ...e, name: res.name } : e)));
+                if (patch.active !== undefined) {
+                    if (setActiveEnvironmentId) setActiveEnvironmentId(patch.active ? id : null);
+                    setEnvironments((es) => es.map((e) => ({ ...e, active: e.id === id })));
+                } else {
+                    const res = await UpdateEnvironment(id, { name: patch.name });
+                    setEnvironments((es) => es.map((e) => (e.id === id ? { ...e, ...res } : e)));
+                }
             } catch (err) {
-                console.error("Failed to rename environment", err);
+                console.error("UpdateEnvironment failed:", err);
             }
         },
         deleteEnvironment: async (id) => {
             try {
-                const env = environments.find(e => e.id === id);
-                if (!env) return;
-                await DeleteEnvironment(id, env.name);
+                await DeleteEnvironment(id, activeWorkspaceId);
                 setEnvironments((es) => es.filter((e) => e.id !== id));
             } catch (err) {
-                console.error("Failed to delete environment", err);
+                console.error("DeleteEnvironment failed:", err);
             }
         },
-        setActiveEnvironment: (id) => setEnvironments((es) => es.map((e) => ({ ...e, active: e.id === id }))),
         duplicateEnvironment: async (id) => {
             try {
                 const res = await DuplicateEnvironment(id);
@@ -253,9 +430,13 @@ function makeEnvironmentCrud({ setEnvironments, activeWorkspaceId, environments 
                 console.error("Failed to duplicate environment", err);
             }
         },
+        setActiveEnvironment: (id) => {
+            setActiveEnvironmentId(id ?? null);
+            setEnvironments((es) => es.map((e) => ({ ...e, active: e.id === id })));
+        },
         updateEnvironmentVariables: async (id, variables) => {
             try {
-                const env = environments.find(e => e.id === id);
+                const env = environments.find((e) => e.id === id);
                 if (!env) return;
                 const res = await UpdateEnvironment(id, { name: env.name, variables });
                 setEnvironments((es) => es.map((e) => (e.id === id ? { ...e, variables: res.variables } : e)));
@@ -267,12 +448,12 @@ function makeEnvironmentCrud({ setEnvironments, activeWorkspaceId, environments 
 }
 
 // ---- Workspace CRUD factory ----
-function makeWorkspaceCrud({ workspaces, setWorkspaces, activeWorkspaceId, setActiveWorkspaceId }) {
+function makeWorkspaceCrud({ workspaces, setWorkspaces, activeWorkspaceId, setActiveWorkspaceId, setCollections }) {
     return {
         addWorkspace: async (name) => {
             try {
                 const res = await CreateWorkspace({ name });
-                const newWs = { ...res, collections: [], environments: [] };
+                const newWs = { ...res };
                 setWorkspaces((prev) => [...prev, newWs]);
                 setActiveWorkspaceId(newWs.id);
             } catch (err) {
@@ -301,174 +482,73 @@ function makeWorkspaceCrud({ workspaces, setWorkspaces, activeWorkspaceId, setAc
             }
         },
         selectWorkspace: (id) => setActiveWorkspaceId(id),
-        // Move a collection from the active workspace to another workspace
-        moveCollectionToWorkspace: (colId, targetWorkspaceId) =>
-            setWorkspaces((prev) => {
-                const source = prev.find((w) => w.id === activeWorkspaceId);
-                const col = source?.collections.find((c) => c.id === colId);
-                if (!col || targetWorkspaceId === activeWorkspaceId) return prev;
-                return prev.map((w) => {
-                    if (w.id === activeWorkspaceId) return { ...w, collections: w.collections.filter((c) => c.id !== colId) };
-                    if (w.id === targetWorkspaceId) return { ...w, collections: [...w.collections, col] };
-                    return w;
-                });
-            }),
     };
 }
 
 // Centralised workspace state composing focused CRUD factories.
-// Each workspace owns its own collections and environments.
 export function useWorkspaceData() {
-    const [workspaces, setWorkspaces] = useState(() => loadState('workspaces', []));
-    const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => {
-        const saved = loadState('activeWorkspaceId', null);
-        const list = loadState('workspaces', []);
-        return list.length > 0 && list.some((w) => w.id === saved) ? saved : (list[0]?.id || null);
-    });
+    const [workspaces, setWorkspaces] = useState([]);
+    const [collections, setCollections] = useState([]);
+    const [environments, setEnvironments] = useState([]);
     const [history, setHistory] = useState(() => loadState('history', []));
 
+    const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => loadState('activeWorkspaceId', null));
+    const [activeEnvironmentId, setActiveEnvironmentId] = useState(() => loadState('activeEnvironmentId', null));
+
+    // Load workspaces once on mount
     useEffect(() => {
-        ListWorkspaces().then(res => {
+        ListWorkspaces().then((res) => {
             if (res && res.length > 0) {
-                setWorkspaces(prevWs => {
-                    const mapped = res.map(w => {
-                        const existing = prevWs.find(pw => pw.id === w.id);
-                        return {
-                            ...w,
-                            collections: existing?.collections || [],
-                            environments: existing?.environments || []
-                        };
-                    });
-                    return mapped;
-                });
-
-                setActiveWorkspaceId(currentId => {
-                    return res.some(w => w.id === currentId) ? currentId : res[0].id;
-                });
+                setWorkspaces(res);
+                setActiveWorkspaceId((currentId) =>
+                    res.some((w) => w.id === currentId) ? currentId : res[0].id
+                );
             }
-        }).catch(err => console.error("Failed to list workspaces", err));
+        }).catch((err) => console.error("Failed to list workspaces", err));
     }, []);
-    // Shallow list — used on workspace switch and after add/delete/duplicate collection
-    const refreshCollections = useCallback(() => {
+
+    // Load collections & environments whenever the active workspace changes
+    useEffect(() => {
         if (!activeWorkspaceId) return;
-        ListCollections(activeWorkspaceId).then(res => {
+
+        ListCollections(activeWorkspaceId).then((res) => {
             const colList = res || [];
-            setWorkspaces(prevWs => prevWs.map(w => {
-                if (w.id !== activeWorkspaceId) return w;
-                const oldCols = w.collections || [];
-                const newCols = colList.map(c => {
-                    const oldCol = oldCols.find(oc => oc.id === c.id);
-                    return {
-                        ...c,
-                        favorite: c.is_favorite,
-                        folders: oldCol?.folders ?? [],
-                        requests: oldCol?.requests ?? [],
-                        expanded: oldCol?.expanded ?? false
-                    };
-                });
-                return { ...w, collections: newCols };
-            }));
-        }).catch(err => console.error("Failed to list collections:", err));
-    }, [activeWorkspaceId]);
-
-    // Detail fetch — used after any folder/request action on a specific collection
-    const refreshCollection = useCallback((colId) => {
-        if (!colId) return;
-        GetCollection(colId).then(c => {
-            setWorkspaces(prevWs => prevWs.map(w => {
-                if (w.id !== activeWorkspaceId) return w;
-                const oldCols = w.collections || [];
-                const oldCol = oldCols.find(oc => oc.id === colId);
-
-                const findFolder = (folders, id) => {
-                    if (!folders) return undefined;
-                    for (const f of folders) {
-                        if (f.id === id) return f;
-                        const found = findFolder(f.folders, id);
-                        if (found) return found;
-                    }
-                    return undefined;
-                };
-
-                const mapItems = (items, parentExpanded) =>
-                    (items || [])
-                        .filter(item => item.type === 'folder')
-                        .map(f => {
-                            const oldFolder = findFolder(oldCol?.folders, f.id);
-                            return {
-                                ...f,
-                                expanded: oldFolder !== undefined ? oldFolder.expanded : false,
-                                requests: (f.items || []).filter(r => r.type === 'request'),
-                                folders: mapItems(f.items, true)
-                            };
-                        });
-                const updatedCol = {
+            setCollections(
+                colList.map((c) => ({
                     ...c,
                     favorite: c.is_favorite,
-                    folders: mapItems(c.items),
-                    requests: (c.items || []).filter(item => item.type === 'request'),
-                    expanded: oldCol !== undefined ? oldCol.expanded : false
-                };
-                return {
-                    ...w,
-                    collections: oldCols.map(oc => oc.id === colId ? updatedCol : oc)
-                };
-            }));
-        }).catch(err => console.error("Failed to refresh collection:", err));
+                    folders: c.folders ?? [],
+                    requests: c.requests ?? [],
+                    expanded: false,
+                    loaded: false,
+                }))
+            );
+        }).catch((err) => console.error("Failed to list collections:", err));
+
+        ListEnvironments(activeWorkspaceId).then((res) => {
+            const savedEnvId = loadState('activeEnvironmentId', null);
+            setEnvironments(
+                (res || []).map((e) => ({ ...e, active: e.id === savedEnvId }))
+            );
+        }).catch((err) => console.error("Failed to list environments:", err));
     }, [activeWorkspaceId]);
 
-    useEffect(() => {
-        if (!activeWorkspaceId) return;
-        ListEnvironments(activeWorkspaceId).then(res => {
-            setWorkspaces(prevWs => prevWs.map(w => {
-                if (w.id === activeWorkspaceId) {
-                    const oldEnvs = w.environments || [];
-                    const activeEnvId = oldEnvs.find(e => e.active)?.id;
-                    const newEnvs = (res || []).map(e => ({
-                        ...e,
-                        active: e.id === activeEnvId
-                    }));
-                    return { ...w, environments: newEnvs };
-                }
-                return w;
-            }));
-        }).catch(err => console.error("Failed to list environments:", err));
-
-        refreshCollections();
-    }, [activeWorkspaceId, refreshCollections]);
-    useEffect(() => saveState('workspaces', workspaces), [workspaces]);
     useEffect(() => saveState('activeWorkspaceId', activeWorkspaceId), [activeWorkspaceId]);
+    useEffect(() => saveState('activeEnvironmentId', activeEnvironmentId), [activeEnvironmentId]);
     useEffect(() => saveState('history', history), [history]);
 
-    const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) || workspaces[0] || { collections: [], environments: [] };
-
-    const setCollections = (updater) =>
-        setWorkspaces((ws) =>
-            ws.map((w) =>
-                w.id === activeWorkspaceId
-                    ? { ...w, collections: typeof updater === 'function' ? updater(w.collections) : updater }
-                    : w,
-            ),
-        );
-    const setEnvironments = (updater) =>
-        setWorkspaces((ws) =>
-            ws.map((w) =>
-                w.id === activeWorkspaceId
-                    ? { ...w, environments: typeof updater === 'function' ? updater(w.environments) : updater }
-                    : w,
-            ),
-        );
+    const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) || workspaces[0] || {};
 
     return {
         workspaces,
         activeWorkspace,
         activeWorkspaceId,
-        collections: activeWorkspace.collections,
-        environments: activeWorkspace.environments,
+        collections,
+        environments,
         history,
         setHistory,
-        ...makeWorkspaceCrud({ workspaces, setWorkspaces, activeWorkspaceId, setActiveWorkspaceId }),
-        ...makeCollectionCrud({ setCollections, activeWorkspaceId, collections: activeWorkspace.collections, refreshCollections, refreshCollection }),
-        ...makeEnvironmentCrud({ setEnvironments, activeWorkspaceId, environments: activeWorkspace.environments }),
+        ...makeWorkspaceCrud({ workspaces, setWorkspaces, activeWorkspaceId, setActiveWorkspaceId, setCollections }),
+        ...makeCollectionCrud({ collections, setCollections, activeWorkspaceId }),
+        ...makeEnvironmentCrud({ environments, setEnvironments, activeWorkspaceId, setActiveEnvironmentId }),
     };
 }

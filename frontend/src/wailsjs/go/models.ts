@@ -150,6 +150,104 @@ export namespace collection {
 		}
 	}
 	
+	export class RequestNode {
+	    id: string;
+	    name: string;
+	    method: string;
+	    sort_order?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RequestNode(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.method = source["method"];
+	        this.sort_order = source["sort_order"];
+	    }
+	}
+	export class FolderNode {
+	    id: string;
+	    name: string;
+	    sort_order?: string;
+	    folders: FolderNode[];
+	    requests: RequestNode[];
+	
+	    static createFrom(source: any = {}) {
+	        return new FolderNode(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.sort_order = source["sort_order"];
+	        this.folders = this.convertValues(source["folders"], FolderNode);
+	        this.requests = this.convertValues(source["requests"], RequestNode);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class CollectionResponse {
+	    id: number[];
+	    name: string;
+	    slug: string;
+	    is_favorite: boolean;
+	    sort_order: string;
+	    folders: FolderNode[];
+	    requests: RequestNode[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CollectionResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.slug = source["slug"];
+	        this.is_favorite = source["is_favorite"];
+	        this.sort_order = source["sort_order"];
+	        this.folders = this.convertValues(source["folders"], FolderNode);
+	        this.requests = this.convertValues(source["requests"], RequestNode);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class CollectionTree {
 	    type: string;
 	    id: string;
@@ -190,47 +288,6 @@ export namespace collection {
 		    return a;
 		}
 	}
-	export class CollectionResponse {
-	    id: number[];
-	    name: string;
-	    slug: string;
-	    is_favorite: boolean;
-	    sort_order: string;
-	    items: CollectionTree[];
-	
-	    static createFrom(source: any = {}) {
-	        return new CollectionResponse(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.slug = source["slug"];
-	        this.is_favorite = source["is_favorite"];
-	        this.sort_order = source["sort_order"];
-	        this.items = this.convertValues(source["items"], CollectionTree);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
 	export class CreateCollectionRequest {
 	    workspace_id: number[];
 	    name: string;
@@ -309,6 +366,7 @@ export namespace collection {
 		    return a;
 		}
 	}
+	
 	export class FolderResponse {
 	    id: number[];
 	    collection_id: number[];
@@ -402,6 +460,7 @@ export namespace collection {
 		    return a;
 		}
 	}
+	
 	export class RequestResponse {
 	    id: number[];
 	    collection_id: number[];

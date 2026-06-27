@@ -38,11 +38,12 @@ func toCollectionResponse(c collection.Collection) collection.CollectionResponse
 		Slug:       c.Slug,
 		IsFavorite: c.IsFavorite,
 		SortOrder:  sortOrder,
-		Items:      make([]collection.CollectionTree, 0),
+		Folders:    make([]collection.FolderNode, 0),
+		Requests:   make([]collection.RequestNode, 0),
 	}
 }
 
-func (u *collectionUsecase) buildTree(ctx context.Context, col *collection.Collection) []collection.CollectionTree {
+func (u *collectionUsecase) buildTree(ctx context.Context, col *collection.Collection) ([]collection.FolderNode, []collection.RequestNode) {
 	folders, _ := u.folderRepo.FindAll(ctx, map[string]any{"collection_id": col.ID})
 	requests, _ := u.requestRepo.FindAll(ctx, map[string]any{"collection_id": col.ID})
 
@@ -51,8 +52,8 @@ func (u *collectionUsecase) buildTree(ctx context.Context, col *collection.Colle
 		colSortOrder = collection.SortOrderDefault
 	}
 
-	var recurse func(parentID *uuid.UUID, sortOrder collection.SortOrder) []collection.CollectionTree
-	recurse = func(parentID *uuid.UUID, sortOrder collection.SortOrder) []collection.CollectionTree {
+	var recurse func(parentID *uuid.UUID, sortOrder collection.SortOrder) ([]collection.FolderNode, []collection.RequestNode)
+	recurse = func(parentID *uuid.UUID, sortOrder collection.SortOrder) ([]collection.FolderNode, []collection.RequestNode) {
 		// Collect matching folders
 		var matchingFolders []collection.CollectionFolder
 		for _, f := range folders {
@@ -88,7 +89,8 @@ func (u *collectionUsecase) buildTree(ctx context.Context, col *collection.Colle
 			})
 		}
 
-		items := make([]collection.CollectionTree, 0, len(matchingFolders)+len(matchingRequests))
+		folderNodes := make([]collection.FolderNode, 0, len(matchingFolders))
+		requestNodes := make([]collection.RequestNode, 0, len(matchingRequests))
 
 		for _, f := range matchingFolders {
 			folSortOrder := f.SortOrder
@@ -96,31 +98,31 @@ func (u *collectionUsecase) buildTree(ctx context.Context, col *collection.Colle
 				folSortOrder = collection.SortOrderDefault
 			}
 
-			folderNode := collection.CollectionTree{
-				Type:      collection.TreeTypeFolder,
+			subFolders, subRequests := recurse(&f.ID, folSortOrder)
+			folderNode := collection.FolderNode{
 				ID:        f.ID.String(),
 				Name:      f.Name,
 				SortOrder: &folSortOrder,
-				Items:     recurse(&f.ID, folSortOrder),
+				Folders:   subFolders,
+				Requests:  subRequests,
 			}
 
-			items = append(items, folderNode)
+			folderNodes = append(folderNodes, folderNode)
 		}
 
 		for _, r := range matchingRequests {
 			rr := toRequestResponse(r)
 
-			reqNode := collection.CollectionTree{
-				Type:   collection.TreeTypeRequest,
+			reqNode := collection.RequestNode{
 				ID:     rr.ID.String(),
 				Name:   rr.Name,
-				Method: &rr.Method,
+				Method: rr.Method,
 			}
 
-			items = append(items, reqNode)
+			requestNodes = append(requestNodes, reqNode)
 		}
 
-		return items
+		return folderNodes, requestNodes
 	}
 
 	return recurse(nil, colSortOrder)
@@ -185,7 +187,7 @@ func (u *collectionUsecase) Get(ctx context.Context, ID uuid.UUID) (*collection.
 	}
 
 	res := toCollectionResponse(*col)
-	res.Items = u.buildTree(ctx, col)
+	res.Folders, res.Requests = u.buildTree(ctx, col)
 	return &res, nil
 }
 

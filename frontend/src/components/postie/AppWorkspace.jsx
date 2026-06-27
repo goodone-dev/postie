@@ -44,23 +44,23 @@ export default function AppWorkspace() {
     const handleSend = async () => {
         if (!activeTab || activeTab.type !== 'request') return;
         updateTab({ ...activeTab, isSending: true });
-        
+
         try {
             const start = performance.now();
             const headers = activeTab.headers
                 .filter(h => h.enabled && h.key)
                 .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {});
-                
+
             const payload = {
                 url: activeTab.url,
                 method: activeTab.method,
                 headers: headers,
                 body: activeTab.bodyType !== 'none' ? activeTab.body : ''
             };
-            
+
             const res = await SendRequest(payload);
             const elapsed = Math.max(0, Math.floor(performance.now() - start));
-            
+
             const responseData = {
                 status: res.status,
                 statusText: res.statusText,
@@ -70,7 +70,7 @@ export default function AppWorkspace() {
                 body: res.body,
                 error: false,
             };
-            
+
             setTabs((ts) => ts.map((t) => (t.id === activeTab.id ? { ...t, isSending: false, response: responseData } : t)));
         } catch (err) {
             const responseData = {
@@ -187,7 +187,7 @@ export default function AppWorkspace() {
                 config={{
                     collectionName: move.col?.name,
                     workspaces: data.workspaces.filter((w) => w.id !== data.activeWorkspaceId),
-                    onPick: (wsId) => move.col && data.moveCollectionToWorkspace(move.col.id, wsId),
+                    onPick: (wsId) => move.col && data.moveCollection(move.col.id, wsId),
                 }}
             />
         </div>

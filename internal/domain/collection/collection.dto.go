@@ -17,12 +17,28 @@ type MoveCollectionRequest struct {
 }
 
 type CollectionResponse struct {
-	ID         uuid.UUID        `json:"id"`
-	Name       string           `json:"name"`
-	Slug       string           `json:"slug"`
-	IsFavorite bool             `json:"is_favorite"`
-	SortOrder  SortOrder        `json:"sort_order"`
-	Items      []CollectionTree `json:"items"`
+	ID         uuid.UUID     `json:"id"`
+	Name       string        `json:"name"`
+	Slug       string        `json:"slug"`
+	IsFavorite bool          `json:"is_favorite"`
+	SortOrder  SortOrder     `json:"sort_order"`
+	Folders    []FolderNode  `json:"folders"`
+	Requests   []RequestNode `json:"requests"`
+}
+
+type FolderNode struct {
+	ID        string        `json:"id"`
+	Name      string        `json:"name"`
+	SortOrder *SortOrder    `json:"sort_order,omitempty"`
+	Folders   []FolderNode  `json:"folders"`
+	Requests  []RequestNode `json:"requests"`
+}
+
+type RequestNode struct {
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	Method    string     `json:"method"`
+	SortOrder *SortOrder `json:"sort_order,omitempty"`
 }
 
 type CollectionTree struct {
