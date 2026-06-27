@@ -1,6 +1,24 @@
 import { useState, useCallback, useEffect } from 'react';
 import { loadState, saveState } from '@/lib/persist';
-import { newRequestTemplate } from '@/data/mockData';
+
+const newRequestTemplate = (overrides = {}) => ({
+    id: `req-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    type: 'request',
+    name: overrides.name || 'Untitled Request',
+    method: overrides.method || 'GET',
+    url: overrides.url || '',
+    params: overrides.params || [{ id: 'p1', key: '', value: '', description: '', enabled: true }],
+    headers: overrides.headers || [
+        { id: 'h1', key: 'Accept', value: 'application/json', description: '', enabled: true },
+        { id: 'h2', key: '', value: '', description: '', enabled: true },
+    ],
+    body: overrides.body || '{\n  "name": "John Doe",\n  "email": "john@example.com"\n}',
+    bodyType: overrides.bodyType || 'none',
+    auth: overrides.auth || { type: 'none', token: '' },
+    response: null,
+    isSending: false,
+    activeTab: 'params',
+});
 
 const DEFAULT_TAB = () =>
     newRequestTemplate({

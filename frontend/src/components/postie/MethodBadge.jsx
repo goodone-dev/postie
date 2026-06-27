@@ -1,6 +1,15 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { methodBgMap } from '@/data/mockData';
+
+const methodBgMap = {
+    GET: 'bg-success-soft text-method-get',
+    POST: 'bg-warning-soft text-method-post',
+    PUT: 'bg-primary-soft text-method-put',
+    PATCH: 'bg-accent text-method-patch',
+    DELETE: 'bg-destructive/10 text-method-delete',
+    HEAD: 'bg-info-soft text-info',
+    OPTIONS: 'bg-muted text-muted-foreground',
+};
 
 const SIZE_CLASS = {
     xs: 'text-[10px] px-1.5 py-0.5',

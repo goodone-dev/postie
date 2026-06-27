@@ -15,8 +15,19 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { KeyValueEditor } from './KeyValueEditor';
 import { MethodLabel } from './MethodBadge';
-import { HTTP_METHODS, methodColorMap } from '@/data/mockData';
 import { cn } from '@/lib/utils';
+
+const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+
+const methodColorMap = {
+    GET: 'text-method-get',
+    POST: 'text-method-post',
+    PUT: 'text-method-put',
+    PATCH: 'text-method-patch',
+    DELETE: 'text-method-delete',
+    HEAD: 'text-info',
+    OPTIONS: 'text-muted-foreground',
+};
 
 export const RequestPanel = ({ request, onUpdate, onSend }) => {
     const update = (patch) => onUpdate({ ...request, ...patch });

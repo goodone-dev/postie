@@ -17,7 +17,7 @@ import {
     Star,
     Copy,
     ChevronsDownUp,
-    ArrowRightLeft,
+    ArrowRight,
     Code2,
     FileText,
     GitBranch,
@@ -128,6 +128,7 @@ export const Sidebar = ({ data, onOpenRequest, onOpenEnvironment, onMove, active
         if (kind === 'collection') data.addCollection(name);
         else if (kind === 'environment') data.addEnvironment(name);
         else if (kind === 'folder') data.addFolder(colId, name);
+        else if (kind === 'subfolder') data.addFolder(colId, name, folderId);
         else if (kind === 'request') data.addRequest(colId, folderId ?? null, { name });
         clearEdit();
     };
@@ -204,7 +205,7 @@ export const Sidebar = ({ data, onOpenRequest, onOpenEnvironment, onMove, active
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Filter"
-                            className="h-8 pl-8 text-xs bg-card border-sidebar-border"
+                            className="h-8 pl-8 text-xs bg-card border-sidebar-border w-full"
                         />
                     </div>
                 </div>
@@ -273,8 +274,12 @@ function makeDnd(dragRef, data) {
 const CollectionsView = ({ data, search, onOpenRequest, onMove, editApi, dnd, openConfirm }) => {
     const q = search.toLowerCase();
     const filtered = data.collections
-        .map((c) => ({ ...c, folders: c.folders.map((f) => ({ ...f, requests: f.requests.filter((r) => r.name.toLowerCase().includes(q)) })) }))
-        .filter((c) => !search || c.name.toLowerCase().includes(q) || c.folders.some((f) => f.requests.length > 0))
+        .map((c) => ({
+            ...c,
+            folders: (c.folders || []).map((f) => ({ ...f, requests: (f.requests || []).filter((r) => r.name.toLowerCase().includes(q)) })),
+            requests: (c.requests || []).filter((r) => r.name.toLowerCase().includes(q))
+        }))
+        .filter((c) => !search || c.name.toLowerCase().includes(q) || (c.folders || []).some((f) => f.requests.length > 0) || (c.requests || []).length > 0)
         .sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
 
     const creatingCollection = editApi.edit?.mode === 'create' && editApi.edit.kind === 'collection';
@@ -304,13 +309,15 @@ const CollectionRow = ({ col, data, onOpenRequest, onMove, editApi, dnd, openCon
     const isRenaming = edit?.mode === 'rename' && edit.kind === 'collection' && edit.id === col.id;
 
     const items = [
+        { label: col.favorite ? 'Unfavorite' : 'Favorite', icon: Star, testId: `collection-favorite-${col.id}`, onClick: () => data.toggleFavorite(col.id) },
         { label: 'Add request', icon: FilePlus2, testId: `collection-add-request-${col.id}`, onClick: () => editApi.startCreate('request', col.id, col.folders[0]?.id) },
         { label: 'Add folder', icon: FolderPlus, testId: `collection-add-folder-${col.id}`, onClick: () => editApi.startCreate('folder', col.id) },
+        { separator: true },
+        { label: 'Move', icon: ArrowRight, testId: `collection-move-${col.id}`, onClick: () => onMove(col) },
+        { separator: true },
         { label: 'Rename', icon: Pencil, testId: `collection-rename-${col.id}`, onClick: () => editApi.startRename('collection', col.id) },
-        { label: col.favorite ? 'Remove from favorites' : 'Add to favorites', icon: Star, testId: `collection-favorite-${col.id}`, onClick: () => data.toggleFavorite(col.id) },
-        { label: 'Collapse', icon: ChevronsDownUp, testId: `collection-collapse-${col.id}`, onClick: () => data.collapseCollection(col.id) },
         { label: 'Duplicate', icon: Copy, testId: `collection-duplicate-${col.id}`, onClick: () => data.duplicateCollection(col.id) },
-        { label: 'Move To', icon: ArrowRightLeft, testId: `collection-move-${col.id}`, onClick: () => onMove(col) },
+        { label: 'Collapse', icon: ChevronsDownUp, testId: `collection-collapse-${col.id}`, onClick: () => data.collapseCollection(col.id) },
         { separator: true },
         { label: 'Delete', icon: Trash2, danger: true, testId: `collection-delete-${col.id}`, onClick: () => openConfirm({ title: `Delete "${col.name}"?`, description: 'This collection and all of its requests will be removed.', onConfirm: () => data.deleteCollection(col.id) }) },
     ];
@@ -356,11 +363,14 @@ const CollectionRow = ({ col, data, onOpenRequest, onMove, editApi, dnd, openCon
                                     <InlineEdit placeholder="Request name" className="text-[13px]" onSubmit={editApi.submitCreate} onCancel={editApi.clearEdit} />
                                 </div>
                             )}
-                            {col.folders.length === 0 && !creatingFolder && !creatingReqHere && (
+                            {col.folders.length === 0 && (col.requests || []).length === 0 && !creatingFolder && !creatingReqHere && (
                                 <div className="px-2 py-1.5 text-[12px] text-muted-foreground italic">Empty collection</div>
                             )}
                             {col.folders.map((folder) => (
                                 <FolderRow key={folder.id} col={col} folder={folder} data={data} onOpenRequest={onOpenRequest} editApi={editApi} dnd={dnd} openConfirm={openConfirm} />
+                            ))}
+                            {(col.requests || []).map((req) => (
+                                <RequestRow key={req.id} col={col} folder={null} req={req} data={data} onOpenRequest={onOpenRequest} editApi={editApi} dnd={dnd} openConfirm={openConfirm} />
                             ))}
                             {creatingFolder && (
                                 <div className="flex items-center gap-1.5 px-2 py-1.5">
@@ -380,12 +390,15 @@ const FolderRow = ({ col, folder, data, onOpenRequest, editApi, dnd, openConfirm
     const { edit } = editApi;
     const isRenaming = edit?.mode === 'rename' && edit.kind === 'folder' && edit.id === folder.id;
     const creatingReq = edit?.mode === 'create' && edit.kind === 'request' && edit.folderId === folder.id;
+    const creatingSubFolder = edit?.mode === 'create' && edit.kind === 'subfolder' && edit.folderId === folder.id;
 
     const items = [
         { label: 'Add request', icon: FilePlus2, testId: `folder-add-request-${folder.id}`, onClick: () => editApi.startCreate('request', col.id, folder.id) },
+        { label: 'Add folder', icon: FolderPlus, testId: `folder-add-subfolder-${folder.id}`, onClick: () => editApi.startCreate('subfolder', col.id, folder.id) },
+        { separator: true },
         { label: 'Rename', icon: Pencil, testId: `folder-rename-${folder.id}`, onClick: () => editApi.startRename('folder', folder.id, col.id) },
-        { label: 'Collapse', icon: ChevronsDownUp, testId: `folder-collapse-${folder.id}`, onClick: () => data.collapseFolder(col.id, folder.id) },
         { label: 'Duplicate', icon: Copy, testId: `folder-duplicate-${folder.id}`, onClick: () => data.duplicateFolder(col.id, folder.id) },
+        { label: 'Collapse', icon: ChevronsDownUp, testId: `folder-collapse-${folder.id}`, onClick: () => data.collapseFolder(col.id, folder.id) },
         { separator: true },
         { label: 'Delete', icon: Trash2, danger: true, testId: `folder-delete-${folder.id}`, onClick: () => openConfirm({ title: `Delete "${folder.name}"?`, description: 'This folder and its requests will be removed.', onConfirm: () => data.deleteFolder(col.id, folder.id) }) },
     ];
@@ -404,7 +417,7 @@ const FolderRow = ({ col, folder, data, onOpenRequest, editApi, dnd, openConfirm
                     data-testid={`folder-toggle-${folder.id}`}
                 >
                     <ChevronRight className={cn('h-3 w-3 text-muted-foreground transition-transform shrink-0', folder.expanded && 'rotate-90')} />
-                    {folder.expanded ? <FolderOpen className="h-3.5 w-3.5 text-primary shrink-0" strokeWidth={2} /> : <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={2} />}
+                    {folder.expanded ? <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={2} /> : <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" strokeWidth={2} />}
                     {isRenaming ? (
                         <InlineEdit defaultValue={folder.name} className="text-[13px]" onSubmit={editApi.submitRename} onCancel={editApi.clearEdit} />
                     ) : (
@@ -414,7 +427,7 @@ const FolderRow = ({ col, folder, data, onOpenRequest, editApi, dnd, openConfirm
                         <RowActions
                             items={items}
                             testId={`folder-menu-${folder.id}`}
-                            indicator={<span className="text-[10px] text-muted-foreground px-1">{folder.requests.length}</span>}
+                            indicator={<span className="text-[10px] text-muted-foreground px-1">{(folder.requests || []).length}</span>}
                         />
                     )}
                 </div>
@@ -423,12 +436,21 @@ const FolderRow = ({ col, folder, data, onOpenRequest, editApi, dnd, openConfirm
             <AnimatePresence initial={false}>
                 {folder.expanded && (
                     <motion.div {...COLLAPSE_ANIM} className="overflow-hidden ml-3 pl-2 border-l border-sidebar-border">
-                        {folder.requests.length === 0 && !creatingReq && (
+                        {(folder.requests || []).length === 0 && (folder.folders || []).length === 0 && !creatingReq && !creatingSubFolder && (
                             <div className="px-2 py-1.5 text-[12px] text-muted-foreground italic">No requests</div>
                         )}
-                        {folder.requests.map((req) => (
+                        {(folder.folders || []).map((subFolder) => (
+                            <FolderRow key={subFolder.id} col={col} folder={subFolder} data={data} onOpenRequest={onOpenRequest} editApi={editApi} dnd={dnd} openConfirm={openConfirm} />
+                        ))}
+                        {(folder.requests || []).map((req) => (
                             <RequestRow key={req.id} col={col} folder={folder} req={req} data={data} onOpenRequest={onOpenRequest} editApi={editApi} dnd={dnd} openConfirm={openConfirm} />
                         ))}
+                        {creatingSubFolder && (
+                            <div className="flex items-center gap-1.5 px-2 py-1.5">
+                                <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                <InlineEdit placeholder="Folder name" className="text-[13px]" onSubmit={editApi.submitCreate} onCancel={editApi.clearEdit} />
+                            </div>
+                        )}
                         {creatingReq && (
                             <div className="flex items-center gap-2 px-2 py-1.5">
                                 <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -446,9 +468,10 @@ const RequestRow = ({ col, folder, req, data, onOpenRequest, editApi, dnd, openC
     const { edit } = editApi;
     const isRenaming = edit?.mode === 'rename' && edit.kind === 'request' && edit.id === req.id;
     const items = [
-        { label: 'Rename', icon: Pencil, testId: `request-rename-${req.id}`, onClick: () => editApi.startRename('request', req.id, col.id, folder.id) },
+        { label: 'Rename', icon: Pencil, testId: `request-rename-${req.id}`, onClick: () => editApi.startRename('request', req.id, col.id, folder?.id) },
+        { label: 'Duplicate', icon: Copy, testId: `request-duplicate-${req.id}`, onClick: () => data.duplicateRequest(col.id, folder?.id, req.id) },
         { separator: true },
-        { label: 'Delete', icon: Trash2, danger: true, testId: `request-delete-${req.id}`, onClick: () => openConfirm({ title: `Delete "${req.name}"?`, description: 'This request will be removed from the collection.', onConfirm: () => data.deleteRequest(col.id, folder.id, req.id) }) },
+        { label: 'Delete', icon: Trash2, danger: true, testId: `request-delete-${req.id}`, onClick: () => openConfirm({ title: `Delete "${req.name}"?`, description: 'This request will be removed from the collection.', onConfirm: () => data.deleteRequest(col.id, folder?.id, req.id) }) },
     ];
 
     return (
@@ -456,11 +479,11 @@ const RequestRow = ({ col, folder, req, data, onOpenRequest, editApi, dnd, openC
             <div
                 data-testid={`request-item-${req.id}`}
                 draggable={!isRenaming}
-                onDragStart={dnd.start({ kind: 'request', colId: col.id, folderId: folder.id, reqId: req.id })}
+                onDragStart={dnd.start({ kind: 'request', colId: col.id, folderId: folder?.id, reqId: req.id })}
                 onDragOver={dnd.over}
-                onDrop={dnd.dropOnRequest(col.id, folder.id, req.id)}
+                onDrop={dnd.dropOnRequest(col.id, folder?.id, req.id)}
                 onClick={() => !isRenaming && onOpenRequest(req)}
-                onDoubleClick={(e) => { e.stopPropagation(); editApi.startRename('request', req.id, col.id, folder.id); }}
+                onDoubleClick={(e) => { e.stopPropagation(); editApi.startRename('request', req.id, col.id, folder?.id); }}
                 className="group w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-sidebar-hover transition-colors text-left cursor-pointer"
             >
                 <MethodLabel method={req.method} className="w-11 shrink-0 text-left" />

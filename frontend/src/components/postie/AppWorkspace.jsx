@@ -6,11 +6,11 @@ import { RequestPanel } from '@/components/postie/RequestPanel';
 import { ResponsePanel } from '@/components/postie/ResponsePanel';
 import { EnvironmentEditor } from '@/components/postie/EnvironmentEditor';
 import { ConfirmDialog, MoveDialog } from '@/components/postie/CrudDialogs';
-import { generateMockResponse } from '@/data/mockData';
 import { useWorkspaceData } from '@/hooks/useWorkspaceData';
 import { useTabs } from '@/hooks/useTabs';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
+import { SendRequest } from '@/wailsjs/go/main/App';
 
 function useConfirmDialog() {
     const [confirm, setConfirm] = useState({ open: false, config: null });
@@ -44,9 +44,47 @@ export default function AppWorkspace() {
     const handleSend = async () => {
         if (!activeTab || activeTab.type !== 'request') return;
         updateTab({ ...activeTab, isSending: true });
-        await new Promise((r) => setTimeout(r, 600 + Math.random() * 500));
-        const res = generateMockResponse(activeTab);
-        setTabs((ts) => ts.map((t) => (t.id === activeTab.id ? { ...t, isSending: false, response: res } : t)));
+        
+        try {
+            const start = performance.now();
+            const headers = activeTab.headers
+                .filter(h => h.enabled && h.key)
+                .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {});
+                
+            const payload = {
+                url: activeTab.url,
+                method: activeTab.method,
+                headers: headers,
+                body: activeTab.bodyType !== 'none' ? activeTab.body : ''
+            };
+            
+            const res = await SendRequest(payload);
+            const elapsed = Math.max(0, Math.floor(performance.now() - start));
+            
+            const responseData = {
+                status: res.status,
+                statusText: res.statusText,
+                time: elapsed,
+                size: new Blob([res.body || '']).size,
+                headers: Object.entries(res.headers || {}).map(([key, value]) => ({ key, value })),
+                body: res.body,
+                error: false,
+            };
+            
+            setTabs((ts) => ts.map((t) => (t.id === activeTab.id ? { ...t, isSending: false, response: responseData } : t)));
+        } catch (err) {
+            const responseData = {
+                status: 0,
+                statusText: 'Error',
+                time: 0,
+                size: 0,
+                headers: [],
+                body: '{\n  "error": "' + (err.message || err) + '"\n}',
+                error: true,
+            };
+            setTabs((ts) => ts.map((t) => (t.id === activeTab.id ? { ...t, isSending: false, response: responseData } : t)));
+        }
+
         if (activeTab.url) {
             data.setHistory((h) =>
                 [{ id: `h-${Date.now()}`, method: activeTab.method, url: activeTab.url, time: 'Just now' }, ...h].slice(0, 20),
@@ -135,7 +173,7 @@ export default function AppWorkspace() {
                 </div>
                 <span>v3.2.1</span>
                 <span className="mx-1">·</span>
-                <span>{data.activeWorkspace.name}</span>
+                <span>{data.activeWorkspace?.name || 'Workspace'}</span>
                 <div className="ml-auto flex items-center gap-3">
                     <span>{tabs.length} open tabs</span>
                     <span className="mono">{activeEnv?.name || 'No env'}</span>
