@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { TopBar } from '@/components/postie/TopBar';
 import { Sidebar } from '@/components/postie/Sidebar';
 import { RequestTabsBar } from '@/components/postie/RequestTabsBar';
@@ -10,7 +10,7 @@ import { useWorkspaceData } from '@/hooks/useWorkspaceData';
 import { useTabs } from '@/hooks/useTabs';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
-import { SendRequest } from '@/wailsjs/go/main/App';
+import { SendRequest, GetRequest, UpdateRequest } from '@/wailsjs/go/main/App';
 
 function useConfirmDialog() {
     const [confirm, setConfirm] = useState({ open: false, config: null });
@@ -32,6 +32,7 @@ export default function AppWorkspace() {
         setTabs,
         setActiveTabId,
         updateTab,
+        markClean,
         openRequest,
         openEnvironmentTab,
         newTab,
@@ -41,9 +42,88 @@ export default function AppWorkspace() {
         closeAll,
     } = tabsApi;
 
+    // Open a collection request: fetch full data from backend then open tab
+    const handleOpenRequest = useCallback(async (req) => {
+        // If it's from sidebar (has an id that looks like a UUID), fetch full data
+        if (req.id && !req.id.startsWith('req-')) {
+            try {
+                const full = await GetRequest(req.id);
+                // Map backend format → tab format
+                const mapped = {
+                    sourceId: full.id,
+                    colId: req.colId || null,
+                    folderId: req.folderId || null,
+                    name: full.name,
+                    method: full.method,
+                    url: full.url || '',
+                    params: (full.params && full.params.length > 0)
+                        ? full.params.map((p, i) => ({ id: `p${i}`, key: p.key, value: p.value, description: p.description || '', enabled: p.enabled !== false }))
+                        : [{ id: 'p1', key: '', value: '', description: '', enabled: true }],
+                    headers: (full.headers && full.headers.length > 0)
+                        ? full.headers.map((h, i) => ({ id: `h${i}`, key: h.key, value: h.value, description: h.description || '', enabled: h.enabled !== false }))
+                        : [{ id: 'h1', key: 'Accept', value: 'application/json', description: '', enabled: true }, { id: 'h2', key: '', value: '', description: '', enabled: true }],
+                    body: full.body?.raw?.value || '',
+                    bodyType: full.body?.type || 'none',
+                    auth: full.auth || { type: 'none' },
+                    isDirty: false,
+                };
+                openRequest(mapped);
+                return;
+            } catch (err) {
+                console.error('Failed to fetch request:', err);
+            }
+        }
+        // Fallback for history or non-collection requests
+        openRequest(req);
+    }, [openRequest]);
+
+    // Save the active tab to backend
+    const handleSaveRequest = useCallback(async () => {
+        if (!activeTab || activeTab.type !== 'request' || !activeTab.sourceId) return;
+        try {
+            const payload = {
+                name: activeTab.name,
+                method: activeTab.method,
+                url: activeTab.url || '',
+                params: (activeTab.params || []).filter(p => p.key).map(p => ({ key: p.key, value: p.value, description: p.description || '', enabled: p.enabled !== false })),
+                path_variables: [],
+                auth: (() => {
+                    const a = activeTab.auth || { type: 'none' };
+                    const base = { type: a.type };
+                    if (a.type === 'bearer' && a.token) base.bearer = { token: a.token };
+                    if (a.type === 'basic') base.basic = { username: a.username || '', password: a.password || '' };
+                    if (a.type === 'apikey') base.api_key = { key: a.key || '', value: a.value || '' };
+                    return base;
+                })(),
+                headers: (activeTab.headers || []).filter(h => h.key).map(h => ({ key: h.key, value: h.value, description: h.description || '', enabled: h.enabled !== false })),
+                body: {
+                    type: activeTab.bodyType || 'none',
+                    ...(activeTab.bodyType === 'raw' ? { raw: { type: 'json', value: activeTab.body || '' } } : {}),
+                },
+            };
+            await UpdateRequest(activeTab.sourceId, payload);
+            markClean(activeTab.id);
+            data.updateRequest(activeTab.sourceId, { name: activeTab.name, method: activeTab.method });
+        } catch (err) {
+            console.error('Failed to save request:', err);
+        }
+    }, [activeTab, markClean, data]);
+
+    // Keyboard shortcut: Cmd/Ctrl+S to save
+    useEffect(() => {
+        const handler = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+                e.preventDefault();
+                handleSaveRequest();
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [handleSaveRequest]);
+
     const handleSend = async () => {
         if (!activeTab || activeTab.type !== 'request') return;
-        updateTab({ ...activeTab, isSending: true });
+        setTabs((ts) => ts.map((t) => (t.id === activeTab.id ? { ...t, isSending: true } : t)));
 
         try {
             const start = performance.now();
@@ -127,7 +207,7 @@ export default function AppWorkspace() {
                 <Panel defaultSize={26} minSize={18} maxSize={36}>
                     <Sidebar
                         data={data}
-                        onOpenRequest={openRequest}
+                        onOpenRequest={handleOpenRequest}
                         onOpenEnvironment={openEnvironmentTab}
                         onMove={openMove}
                         activeView={activeView}
@@ -153,7 +233,7 @@ export default function AppWorkspace() {
                         {activeTab?.type === 'request' && (
                             <PanelGroup direction="vertical" className="flex-1 min-h-0">
                                 <Panel defaultSize={55} minSize={25}>
-                                    <RequestPanel request={activeTab} onUpdate={updateTab} onSend={handleSend} />
+                                    <RequestPanel request={activeTab} onUpdate={updateTab} onSend={handleSend} onSave={handleSaveRequest} />
                                 </Panel>
                                 <ResizeHandle horizontal />
                                 <Panel defaultSize={45} minSize={20}>

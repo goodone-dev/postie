@@ -126,7 +126,7 @@ export const Sidebar = ({ data, onOpenRequest, onOpenEnvironment, onMove, active
     const submitCreate = (name) => {
         const { kind, colId, folderId } = edit;
         if (kind === 'collection') data.addCollection(name);
-        else if (kind === 'environment') data.addEnvironment(name);
+        else if (kind === 'environment') data.createEnvironment(name);
         else if (kind === 'folder') data.addFolder(colId, name);
         else if (kind === 'subfolder') data.addFolder(colId, name, folderId);
         else if (kind === 'request') data.addRequest(colId, folderId ?? null, { name });
@@ -310,8 +310,18 @@ const CollectionRow = ({ col, data, onOpenRequest, onMove, editApi, dnd, openCon
 
     const items = [
         { label: col.favorite ? 'Unfavorite' : 'Favorite', icon: Star, testId: `collection-favorite-${col.id}`, onClick: () => data.toggleFavorite(col.id) },
-        { label: 'Add request', icon: FilePlus2, testId: `collection-add-request-${col.id}`, onClick: () => editApi.startCreate('request', col.id, col.folders[0]?.id) },
-        { label: 'Add folder', icon: FolderPlus, testId: `collection-add-folder-${col.id}`, onClick: () => editApi.startCreate('folder', col.id) },
+        {
+            label: 'Add request', icon: FilePlus2, testId: `collection-add-request-${col.id}`, onClick: async () => {
+                if (!col.expanded) await data.toggleCollection(col.id);
+                editApi.startCreate('request', col.id, null);
+            }
+        },
+        {
+            label: 'Add folder', icon: FolderPlus, testId: `collection-add-folder-${col.id}`, onClick: async () => {
+                if (!col.expanded) await data.toggleCollection(col.id);
+                editApi.startCreate('folder', col.id);
+            }
+        },
         { separator: true },
         { label: 'Move', icon: ArrowRight, testId: `collection-move-${col.id}`, onClick: () => onMove(col) },
         { separator: true },
@@ -357,12 +367,6 @@ const CollectionRow = ({ col, data, onOpenRequest, onMove, editApi, dnd, openCon
                 {col.expanded && (
                     <motion.div {...COLLAPSE_ANIM} className="overflow-hidden">
                         <div className="ml-3 pl-2 border-l border-sidebar-border">
-                            {creatingReqHere && (
-                                <div className="flex items-center gap-2 px-2 py-1.5">
-                                    <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                    <InlineEdit placeholder="Request name" className="text-[13px]" onSubmit={editApi.submitCreate} onCancel={editApi.clearEdit} />
-                                </div>
-                            )}
                             {col.folders.length === 0 && (col.requests || []).length === 0 && !creatingFolder && !creatingReqHere && (
                                 <div className="px-2 py-1.5 text-[12px] text-muted-foreground italic">Empty collection</div>
                             )}
@@ -372,6 +376,12 @@ const CollectionRow = ({ col, data, onOpenRequest, onMove, editApi, dnd, openCon
                             {(col.requests || []).map((req) => (
                                 <RequestRow key={req.id} col={col} folder={null} req={req} data={data} onOpenRequest={onOpenRequest} editApi={editApi} dnd={dnd} openConfirm={openConfirm} />
                             ))}
+                            {creatingReqHere && (
+                                <div className="flex items-center gap-2 px-2 py-1.5">
+                                    <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                    <InlineEdit placeholder="Request name" className="text-[13px]" onSubmit={editApi.submitCreate} onCancel={editApi.clearEdit} />
+                                </div>
+                            )}
                             {creatingFolder && (
                                 <div className="flex items-center gap-1.5 px-2 py-1.5">
                                     <Folder className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -482,7 +492,7 @@ const RequestRow = ({ col, folder, req, data, onOpenRequest, editApi, dnd, openC
                 onDragStart={dnd.start({ kind: 'request', colId: col.id, folderId: folder?.id, reqId: req.id })}
                 onDragOver={dnd.over}
                 onDrop={dnd.dropOnRequest(col.id, folder?.id, req.id)}
-                onClick={() => !isRenaming && onOpenRequest(req)}
+                onClick={() => !isRenaming && onOpenRequest({ ...req, colId: col.id, folderId: folder?.id ?? null })}
                 onDoubleClick={(e) => { e.stopPropagation(); editApi.startRename('request', req.id, col.id, folder?.id); }}
                 className="group w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-sidebar-hover transition-colors text-left cursor-pointer"
             >

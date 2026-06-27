@@ -4,6 +4,10 @@ import { loadState, saveState } from '@/lib/persist';
 const newRequestTemplate = (overrides = {}) => ({
     id: `req-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     type: 'request',
+    // sourceId: the backend request ID (uuid) if this tab was opened from a collection
+    sourceId: overrides.sourceId || null,
+    colId: overrides.colId || null,
+    folderId: overrides.folderId || null,
     name: overrides.name || 'Untitled Request',
     method: overrides.method || 'GET',
     url: overrides.url || '',
@@ -12,11 +16,12 @@ const newRequestTemplate = (overrides = {}) => ({
         { id: 'h1', key: 'Accept', value: 'application/json', description: '', enabled: true },
         { id: 'h2', key: '', value: '', description: '', enabled: true },
     ],
-    body: overrides.body || '{\n  "name": "John Doe",\n  "email": "john@example.com"\n}',
+    body: overrides.body || '',
     bodyType: overrides.bodyType || 'none',
-    auth: overrides.auth || { type: 'none', token: '' },
+    auth: overrides.auth || { type: 'none' },
     response: null,
     isSending: false,
+    isDirty: false,
     activeTab: 'params',
 });
 
@@ -44,19 +49,33 @@ export function useTabs() {
     const activeTab = tabs.find((t) => t.id === activeTabId);
 
     const updateTab = useCallback((patch) => {
-        setTabs((ts) => ts.map((t) => (t.id === patch.id ? patch : t)));
+        setTabs((ts) => ts.map((t) => (t.id === patch.id ? { ...patch, isDirty: true } : t)));
+    }, []);
+
+    const markClean = useCallback((id) => {
+        setTabs((ts) => ts.map((t) => (t.id === id ? { ...t, isDirty: false } : t)));
     }, []);
 
     const openRequest = useCallback(
         (req) => {
-            const existing = tabs.find(
-                (t) => t.type === 'request' && t.url === req.url && t.method === req.method && t.name === req.name,
-            );
-            if (existing) {
-                setActiveTabId(existing.id);
-                return;
+            // If req has a sourceId (backend UUID), check if already open by sourceId
+            if (req.sourceId) {
+                const existing = tabs.find((t) => t.type === 'request' && t.sourceId === req.sourceId);
+                if (existing) {
+                    setActiveTabId(existing.id);
+                    return;
+                }
+            } else {
+                // Fallback: match by name+method+url for non-collection requests
+                const existing = tabs.find(
+                    (t) => t.type === 'request' && !t.sourceId && t.url === req.url && t.method === req.method && t.name === req.name,
+                );
+                if (existing) {
+                    setActiveTabId(existing.id);
+                    return;
+                }
             }
-            const newReq = newRequestTemplate({ name: req.name, method: req.method, url: req.url });
+            const newReq = newRequestTemplate(req);
             setTabs((ts) => [...ts, newReq]);
             setActiveTabId(newReq.id);
         },
@@ -135,6 +154,7 @@ export function useTabs() {
         setTabs,
         setActiveTabId,
         updateTab,
+        markClean,
         openRequest,
         openEnvironmentTab,
         newTab,

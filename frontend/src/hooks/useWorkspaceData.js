@@ -52,6 +52,14 @@ const findFolder = (folders, id) => {
     return undefined;
 };
 
+const updateRequestInFolders = (folders, reqId, patch) => {
+    return folders.map((f) => ({
+        ...f,
+        requests: (f.requests || []).map((r) => r.id === reqId ? { ...r, ...patch } : r),
+        folders: updateRequestInFolders(f.folders || [], reqId, patch),
+    }));
+};
+
 // ---- Collection / folder / request CRUD factory ----
 function makeCollectionCrud({ collections, setCollections, activeWorkspaceId }) {
     return {
@@ -325,6 +333,15 @@ function makeCollectionCrud({ collections, setCollections, activeWorkspaceId }) 
             } catch (err) {
                 console.error("Failed to duplicate request", err);
             }
+        },
+        updateRequest: (reqId, patch) => {
+            setCollections((cs) =>
+                cs.map((c) => ({
+                    ...c,
+                    folders: updateRequestInFolders(c.folders || [], reqId, patch),
+                    requests: (c.requests || []).map((r) => r.id === reqId ? { ...r, ...patch } : r),
+                }))
+            );
         },
 
         // ---- Drag & drop moves (within the active workspace) ----

@@ -29,7 +29,7 @@ const methodColorMap = {
     OPTIONS: 'text-muted-foreground',
 };
 
-export const RequestPanel = ({ request, onUpdate, onSend }) => {
+export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
     const update = (patch) => onUpdate({ ...request, ...patch });
 
     return (
@@ -90,8 +90,18 @@ export const RequestPanel = ({ request, onUpdate, onSend }) => {
                             </>
                         )}
                     </Button>
-                    <Button variant="outline" className="h-11 px-3 bg-card">
+                    <Button
+                        variant="outline"
+                        className={cn('h-11 px-3 bg-card relative', request.isDirty && request.sourceId && 'border-warning/60 text-warning hover:text-warning')}
+                        onClick={onSave}
+                        disabled={!request.sourceId}
+                        title={request.sourceId ? (navigator.platform?.toLowerCase().includes('mac') ? '⌘S' : 'Ctrl+S') : 'Not a saved request'}
+                        data-testid="save-request-btn"
+                    >
                         <Save className="h-4 w-4" />
+                        {request.isDirty && request.sourceId && (
+                            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-warning" />
+                        )}
                     </Button>
                 </div>
             </div>
