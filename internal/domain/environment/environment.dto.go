@@ -3,10 +3,11 @@ package environment
 import "github.com/google/uuid"
 
 type EnvironmentVariable struct {
-	ID      string `json:"id"`
-	Key     string `json:"key"`
-	Value   string `json:"value"`
-	Enabled bool   `json:"enabled"`
+	ID          string `json:"id"`
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	Description string `json:"description"`
+	Enabled     bool   `json:"enabled"`
 }
 
 type CreateEnvironmentRequest struct {

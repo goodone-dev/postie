@@ -11,8 +11,10 @@ export const InlineEdit = ({ defaultValue = '', placeholder, onSubmit, onCancel,
     useEffect(() => {
         const el = ref.current;
         if (el) {
-            el.focus();
-            el.select();
+            setTimeout(() => {
+                el.focus();
+                el.select();
+            }, 10);
         }
     }, []);
 
@@ -27,6 +29,7 @@ export const InlineEdit = ({ defaultValue = '', placeholder, onSubmit, onCancel,
     return (
         <input
             ref={ref}
+            autoFocus
             data-testid="inline-edit-input"
             size={1}
             value={value}

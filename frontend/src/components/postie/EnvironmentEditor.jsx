@@ -37,7 +37,7 @@ export const EnvironmentEditor = ({ env, onChange }) => {
                     onChange={(next) => onChange(next)}
                     placeholderKey="VARIABLE"
                     placeholderValue="VALUE"
-                    showDescription={false}
+                    showDescription={true}
                 />
             </div>
         </div>

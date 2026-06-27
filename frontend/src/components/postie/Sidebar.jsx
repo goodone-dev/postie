@@ -322,12 +322,11 @@ const CollectionRow = ({ col, data, onOpenRequest, onMove, editApi, dnd, openCon
                 editApi.startCreate('folder', col.id);
             }
         },
-        { separator: true },
-        { label: 'Move', icon: ArrowRight, testId: `collection-move-${col.id}`, onClick: () => onMove(col) },
+        { label: 'Collapse All', icon: ChevronsDownUp, testId: `collection-collapse-${col.id}`, onClick: () => data.collapseCollection(col.id) },
         { separator: true },
         { label: 'Rename', icon: Pencil, testId: `collection-rename-${col.id}`, onClick: () => editApi.startRename('collection', col.id) },
         { label: 'Duplicate', icon: Copy, testId: `collection-duplicate-${col.id}`, onClick: () => data.duplicateCollection(col.id) },
-        { label: 'Collapse', icon: ChevronsDownUp, testId: `collection-collapse-${col.id}`, onClick: () => data.collapseCollection(col.id) },
+        { label: 'Move', icon: ArrowRight, testId: `collection-move-${col.id}`, onClick: () => onMove(col) },
         { separator: true },
         { label: 'Delete', icon: Trash2, danger: true, testId: `collection-delete-${col.id}`, onClick: () => openConfirm({ title: `Delete "${col.name}"?`, description: 'This collection and all of its requests will be removed.', onConfirm: () => data.deleteCollection(col.id) }) },
     ];
@@ -403,12 +402,22 @@ const FolderRow = ({ col, folder, data, onOpenRequest, editApi, dnd, openConfirm
     const creatingSubFolder = edit?.mode === 'create' && edit.kind === 'subfolder' && edit.folderId === folder.id;
 
     const items = [
-        { label: 'Add request', icon: FilePlus2, testId: `folder-add-request-${folder.id}`, onClick: () => editApi.startCreate('request', col.id, folder.id) },
-        { label: 'Add folder', icon: FolderPlus, testId: `folder-add-subfolder-${folder.id}`, onClick: () => editApi.startCreate('subfolder', col.id, folder.id) },
+        {
+            label: 'Add request', icon: FilePlus2, testId: `folder-add-request-${folder.id}`, onClick: async () => {
+                if (!folder.expanded) await data.toggleFolder(col.id, folder.id);
+                editApi.startCreate('request', col.id, folder.id)
+            }
+        },
+        {
+            label: 'Add folder', icon: FolderPlus, testId: `folder-add-subfolder-${folder.id}`, onClick: async () => {
+                if (!folder.expanded) await data.toggleFolder(col.id, folder.id);
+                editApi.startCreate('subfolder', col.id, folder.id)
+            }
+        },
+        { label: 'Collapse All', icon: ChevronsDownUp, testId: `folder-collapse-${folder.id}`, onClick: () => data.collapseFolder(col.id, folder.id) },
         { separator: true },
         { label: 'Rename', icon: Pencil, testId: `folder-rename-${folder.id}`, onClick: () => editApi.startRename('folder', folder.id, col.id) },
         { label: 'Duplicate', icon: Copy, testId: `folder-duplicate-${folder.id}`, onClick: () => data.duplicateFolder(col.id, folder.id) },
-        { label: 'Collapse', icon: ChevronsDownUp, testId: `folder-collapse-${folder.id}`, onClick: () => data.collapseFolder(col.id, folder.id) },
         { separator: true },
         { label: 'Delete', icon: Trash2, danger: true, testId: `folder-delete-${folder.id}`, onClick: () => openConfirm({ title: `Delete "${folder.name}"?`, description: 'This folder and its requests will be removed.', onConfirm: () => data.deleteFolder(col.id, folder.id) }) },
     ];

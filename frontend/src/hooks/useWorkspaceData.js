@@ -133,7 +133,10 @@ function makeCollectionCrud({ collections, setCollections, activeWorkspaceId }) 
                 console.error("Failed to toggle collection:", err);
             }
         },
-        collapseCollection: (id) => mapCol(setCollections, id, (c) => ({ ...c, expanded: false })),
+        collapseCollection: (id) => mapCol(setCollections, id, (c) => {
+            const collapseAll = (folders) => (folders || []).map(f => ({ ...f, expanded: false, folders: collapseAll(f.folders) }));
+            return { ...c, expanded: false, folders: collapseAll(c.folders) };
+        }),
         toggleFavorite: async (id) => {
             try {
                 const col = collections.find((c) => c.id === id);
@@ -225,7 +228,10 @@ function makeCollectionCrud({ collections, setCollections, activeWorkspaceId }) 
             }
         },
         toggleFolder: (colId, folderId) => mapFolder(setCollections, colId, folderId, (f) => ({ ...f, expanded: !f.expanded })),
-        collapseFolder: (colId, folderId) => mapFolder(setCollections, colId, folderId, (f) => ({ ...f, expanded: false })),
+        collapseFolder: (colId, folderId) => mapFolder(setCollections, colId, folderId, (f) => {
+            const collapseAll = (folders) => (folders || []).map(subF => ({ ...subF, expanded: false, folders: collapseAll(subF.folders) }));
+            return { ...f, expanded: false, folders: collapseAll(f.folders) };
+        }),
         duplicateFolder: async (colId, folderId) => {
             try {
                 const res = await DuplicateFolder(folderId);
@@ -427,7 +433,9 @@ function makeEnvironmentCrud({ environments, setEnvironments, activeWorkspaceId,
         },
         deleteEnvironment: async (id) => {
             try {
-                await DeleteEnvironment(id, activeWorkspaceId);
+                const env = environments.find((e) => e.id === id);
+                if (!env) return;
+                await DeleteEnvironment(id, env.name);
                 setEnvironments((es) => es.filter((e) => e.id !== id));
             } catch (err) {
                 console.error("DeleteEnvironment failed:", err);

@@ -566,6 +566,7 @@ export namespace environment {
 	    id: string;
 	    key: string;
 	    value: string;
+	    description: string;
 	    enabled: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -577,6 +578,7 @@ export namespace environment {
 	        this.id = source["id"];
 	        this.key = source["key"];
 	        this.value = source["value"];
+	        this.description = source["description"];
 	        this.enabled = source["enabled"];
 	    }
 	}
