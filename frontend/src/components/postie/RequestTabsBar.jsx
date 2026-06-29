@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { X, Plus, Globe, FilePlus, Copy, XCircle, XSquare, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MethodLabel } from './MethodBadge';
@@ -20,6 +20,15 @@ export const RequestTabsBar = ({ tabs, activeId, onSelect, actions }) => {
             scrollRef.current.scrollLeft += e.deltaY;
         }
     };
+
+    // Scroll active tab into view
+    useEffect(() => {
+        if (!activeId || !scrollRef.current) return;
+        const activeTabEl = scrollRef.current.querySelector(`[data-testid="open-tab-${activeId}"]`);
+        if (activeTabEl) {
+            activeTabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        }
+    }, [activeId]);
 
     return (
         <div className="h-10 shrink-0 bg-card border-b border-border flex items-stretch">

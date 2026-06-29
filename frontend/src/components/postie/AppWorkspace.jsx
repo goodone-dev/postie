@@ -175,7 +175,19 @@ export default function AppWorkspace() {
     const tabActions = {
         onNew: newTab,
         onDuplicate: duplicateTab,
-        onClose: closeTab,
+        onClose: (id) => {
+            const tab = tabs.find((t) => t.id === id);
+            if (tab && tab.isDirty && tab.type !== 'environment') {
+                openConfirm({
+                    title: 'Close unsaved tab?',
+                    description: 'You have unsaved changes. Are you sure you want to close this tab?',
+                    confirmText: 'Close',
+                    onConfirm: () => closeTab(id),
+                });
+            } else {
+                closeTab(id);
+            }
+        },
         onCloseOthers: (id) =>
             openConfirm({ title: 'Close other tabs?', description: 'All tabs except this one will be closed.', confirmText: 'Close Others', onConfirm: () => closeOthers(id) }),
         onCloseAll: () =>
