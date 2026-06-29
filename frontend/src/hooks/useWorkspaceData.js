@@ -255,13 +255,44 @@ function makeCollectionCrud({ collections, setCollections, activeWorkspaceId }) 
         // ---- Requests ----
         addRequest: async (colId, folderId, req) => {
             try {
+                // Determine base fields
+                const name = typeof req === 'string' ? req : req.name || 'New Request';
+                const method = typeof req === 'string' ? 'GET' : req.method || 'GET';
+                const url = typeof req === 'string' ? '' : req.url || '';
+
+                // If it's a full request object, parse its fields
+                const params = typeof req === 'object' && req.params ? req.params.filter(p => p.key).map(p => ({ key: p.key, value: p.value, description: p.description || '', enabled: p.enabled !== false })) : [];
+                const pathVariables = typeof req === 'object' && req.pathVariables ? req.pathVariables.filter(p => p.key).map(p => ({ key: p.key, value: p.value, description: p.description || '', enabled: p.enabled !== false })) : [];
+                const headers = typeof req === 'object' && req.headers ? req.headers.filter(h => h.key).map(h => ({ key: h.key, value: h.value, description: h.description || '', enabled: h.enabled !== false })) : [];
+
+                let auth = { type: 'none' };
+                if (typeof req === 'object' && req.auth) {
+                    const a = req.auth;
+                    auth = { type: a.type };
+                    if (a.type === 'bearer' && a.token) auth.bearer = { token: a.token };
+                    if (a.type === 'basic') auth.basic = { username: a.username || '', password: a.password || '' };
+                    if (a.type === 'apikey') auth.api_key = { key: a.key || '', value: a.value || '' };
+                }
+
+                let body = { type: 'none' };
+                if (typeof req === 'object' && req.bodyType) {
+                    body = { type: req.bodyType };
+                    if (req.bodyType === 'raw') body.raw = { type: 'json', value: req.body || '' };
+                    if (req.bodyType === 'form-data' && req.bodyFormData) body.form_data = req.bodyFormData.filter(h => h.key).map(h => ({ key: h.key, value: h.value, description: h.description || '', enabled: h.enabled !== false }));
+                    if (req.bodyType === 'x-www-form-urlencoded' && req.bodyUrlEncoded) body.url_encoded = req.bodyUrlEncoded.filter(h => h.key).map(h => ({ key: h.key, value: h.value, description: h.description || '', enabled: h.enabled !== false }));
+                }
+
                 const reqData = {
                     collection_id: colId,
                     folder_id: folderId || null,
-                    name: typeof req === 'string' ? req : req.name || 'New Request',
-                    method: typeof req === 'string' ? 'GET' : req.method || 'GET',
-                    url: typeof req === 'string' ? '' : req.url || '',
-                    params: [], path_variables: [], auth: { type: 'none' }, headers: [], body: { type: 'none' }
+                    name,
+                    method,
+                    url,
+                    params,
+                    path_variables: pathVariables,
+                    auth,
+                    headers,
+                    body
                 };
                 const res = await CreateRequest(reqData);
                 if (folderId) {
@@ -275,8 +306,10 @@ function makeCollectionCrud({ collections, setCollections, activeWorkspaceId }) 
                         requests: [...(c.requests || []), res],
                     }));
                 }
+                return res;
             } catch (err) {
                 console.error("Failed to add request", err);
+                return null;
             }
         },
         renameRequest: async (colId, folderId, reqId, name) => {

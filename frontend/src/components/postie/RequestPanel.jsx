@@ -67,7 +67,88 @@ export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
                         <Input
                             data-testid="request-url-input"
                             value={request.url}
-                            onChange={(e) => update({ url: e.target.value })}
+                            onChange={(e) => {
+                                const newUrl = e.target.value;
+                                const oldUrl = request.url || '';
+                                const oldKeys = Array.from(oldUrl.matchAll(/:([a-zA-Z0-9_-]+)/g)).map(m => m[1]);
+                                const newKeys = Array.from(newUrl.matchAll(/:([a-zA-Z0-9_-]+)/g)).map(m => m[1]);
+
+                                // Sync pathVariables: add/rename/remove based on URL changes
+                                const newPathVars = [...(request.pathVariables || [])];
+
+                                for (let i = 0; i < Math.max(oldKeys.length, newKeys.length); i++) {
+                                    const oldKey = oldKeys[i];
+                                    const newKey = newKeys[i];
+
+                                    if (oldKey && newKey && oldKey !== newKey) {
+                                        // Renamed: update existing entry or add new one
+                                        const idx = newPathVars.findIndex(p => p.key === oldKey);
+                                        if (idx >= 0) {
+                                            newPathVars[idx] = { ...newPathVars[idx], key: newKey };
+                                        } else if (!newPathVars.find(p => p.key === newKey)) {
+                                            newPathVars.push({ id: `pv${Date.now()}${Math.random()}`, key: newKey, value: '', description: '', enabled: true });
+                                        }
+                                    } else if (oldKey && !newKey) {
+                                        // Removed: delete the entry
+                                        const idx = newPathVars.findIndex(p => p.key === oldKey);
+                                        if (idx >= 0) newPathVars.splice(idx, 1);
+                                    } else if (!oldKey && newKey) {
+                                        // Added: insert new entry if not already there
+                                        if (!newPathVars.find(p => p.key === newKey)) {
+                                            newPathVars.push({ id: `pv${Date.now()}${Math.random()}`, key: newKey, value: '', description: '', enabled: true });
+                                        }
+                                    }
+                                }
+
+                                // Sync query params
+                                let searchParams = [];
+                                try {
+                                    const urlObj = new URL(newUrl.includes('://') ? newUrl : `http://dummy/${newUrl}`);
+                                    searchParams = Array.from(urlObj.searchParams.entries()).filter(([k, v]) => k || v);
+                                } catch (e) {
+                                    // ignore invalid URL
+                                }
+
+                                const newParams = [];
+                                let searchParamsIdx = 0;
+
+                                for (let i = 0; i < request.params.length; i++) {
+                                    const p = request.params[i];
+                                    
+                                    // Strip completely empty params so they don't get stuck in the middle
+                                    if (!p.key && !p.value) {
+                                        continue;
+                                    }
+                                    
+                                    // Keep disabled params
+                                    if (!p.enabled) {
+                                        newParams.push(p);
+                                        continue;
+                                    }
+                                    
+                                    // It's an enabled param
+                                    if (searchParamsIdx < searchParams.length) {
+                                        const [k, v] = searchParams[searchParamsIdx];
+                                        newParams.push({ ...p, key: k, value: v });
+                                        searchParamsIdx++;
+                                    }
+                                }
+
+                                // If there are remaining search params in the URL, add them
+                                while (searchParamsIdx < searchParams.length) {
+                                    const [k, v] = searchParams[searchParamsIdx];
+                                    newParams.push({ id: `p${Date.now()}${Math.random()}`, key: k, value: v, description: '', enabled: true });
+                                    searchParamsIdx++;
+                                }
+
+                                // Ensure there is an empty row at the end
+                                const last = newParams[newParams.length - 1];
+                                if (!last || last.key || last.value) {
+                                    newParams.push({ id: `p${Date.now()}${Math.random()}`, key: '', value: '', description: '', enabled: true });
+                                }
+
+                                update({ url: newUrl, pathVariables: newPathVars, params: newParams });
+                            }}
                             placeholder="Enter request URL"
                             className="flex-1 border-0 rounded-none focus-visible:ring-0 mono text-sm h-11 bg-transparent"
                             onKeyDown={(e) => e.key === 'Enter' && onSend()}
@@ -94,7 +175,6 @@ export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
                         variant="outline"
                         className={cn('h-11 px-3 bg-card relative', request.isDirty && request.sourceId && 'border-warning/60 text-warning hover:text-warning')}
                         onClick={onSave}
-                        disabled={!request.sourceId}
                         title={request.sourceId ? (navigator.platform?.toLowerCase().includes('mac') ? '⌘S' : 'Ctrl+S') : 'Not a saved request'}
                         data-testid="save-request-btn"
                     >
@@ -115,7 +195,7 @@ export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
                 <div className="px-5 border-b border-border bg-card/40">
                     <TabsList className="bg-transparent p-0 h-10 gap-1">
                         {[
-                            { id: 'params', label: 'Params', count: request.params.filter((p) => p.key).length },
+                            { id: 'params', label: 'Params', count: request.params.filter((p) => p.key).length + (request.pathVariables || []).filter(p => p.key).length },
                             { id: 'auth', label: 'Authorization' },
                             { id: 'headers', label: 'Headers', count: request.headers.filter((h) => h.key).length },
                             { id: 'body', label: 'Body' },
@@ -142,9 +222,35 @@ export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
                 </div>
 
                 <div className="flex-1 overflow-auto p-5 scrollbar-thin">
-                    <TabsContent value="params" className="mt-0">
-                        <SectionHeader title="Query Params" description="Append parameters to the request URL" />
-                        <KeyValueEditor rows={request.params} onChange={(rows) => update({ params: rows })} />
+                    <TabsContent value="params" className="mt-0 space-y-6">
+                        <div>
+                            <SectionHeader title="Query Params" description="Append key-value pairs to the request URL" />
+                            <KeyValueEditor 
+                                rows={request.params} 
+                                onChange={(rows) => {
+                                    let currentUrl = request.url || '';
+                                    const queryStart = currentUrl.indexOf('?');
+                                    const baseUrl = queryStart >= 0 ? currentUrl.substring(0, queryStart) : currentUrl;
+                                    
+                                    const qp = new URLSearchParams();
+                                    rows.filter(p => p.enabled && (p.key || p.value)).forEach(p => qp.append(p.key, p.value));
+                                    const qs = qp.toString();
+                                    
+                                    const newUrl = qs ? `${baseUrl}?${qs}` : baseUrl;
+                                    update({ params: rows, url: newUrl });
+                                }} 
+                            />
+                        </div>
+                        {(request.pathVariables || []).length > 0 && (
+                            <div>
+                                <SectionHeader title="Path Variables" description="Values substituted into the URL path (e.g. :id)" />
+                                <KeyValueEditor
+                                    rows={request.pathVariables}
+                                    onChange={(rows) => update({ pathVariables: rows })}
+                                    readonlyKey
+                                />
+                            </div>
+                        )}
                     </TabsContent>
 
                     <TabsContent value="headers" className="mt-0">
@@ -324,10 +430,18 @@ const BodyEditor = ({ request, update }) => {
                     />
                 </div>
             )}
-            {(request.bodyType === 'form-data' || request.bodyType === 'x-www-form-urlencoded') && (
+            {request.bodyType === 'form-data' && (
                 <KeyValueEditor
-                    rows={request.params}
-                    onChange={(rows) => update({ params: rows })}
+                    rows={request.bodyFormData}
+                    onChange={(rows) => update({ bodyFormData: rows })}
+                    placeholderKey="key"
+                    placeholderValue="value"
+                />
+            )}
+            {request.bodyType === 'x-www-form-urlencoded' && (
+                <KeyValueEditor
+                    rows={request.bodyUrlEncoded}
+                    onChange={(rows) => update({ bodyUrlEncoded: rows })}
                     placeholderKey="key"
                     placeholderValue="value"
                 />

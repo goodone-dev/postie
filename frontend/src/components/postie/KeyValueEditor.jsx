@@ -4,13 +4,15 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 
-export const KeyValueEditor = ({ rows, onChange, placeholderKey = 'Key', placeholderValue = 'Value', showDescription = true }) => {
+export const KeyValueEditor = ({ rows, onChange, placeholderKey = 'Key', placeholderValue = 'Value', showDescription = true, readonlyKey = false }) => {
     const update = (id, field, value) => {
         const next = rows.map((r) => (r.id === id ? { ...r, [field]: value } : r));
-        // Auto-add empty row
-        const last = next[next.length - 1];
-        if (last && (last.key || last.value)) {
-            next.push({ id: `kv-${Date.now()}-${Math.random()}`, key: '', value: '', description: '', enabled: true });
+        // Auto-add empty row (only for editable key mode)
+        if (!readonlyKey) {
+            const last = next[next.length - 1];
+            if (last && (last.key || last.value)) {
+                next.push({ id: `kv-${Date.now()}-${Math.random()}`, key: '', value: '', description: '', enabled: true });
+            }
         }
         onChange(next);
     };
@@ -27,7 +29,7 @@ export const KeyValueEditor = ({ rows, onChange, placeholderKey = 'Key', placeho
                 <div className="px-3 py-2 border-l border-border">Key</div>
                 <div className="px-3 py-2 border-l border-border">Value</div>
                 {showDescription && <div className="px-3 py-2 border-l border-border">Description</div>}
-                <div className="px-3 py-2 w-10 border-l border-border" />
+                {!readonlyKey && <div className="px-3 py-2 w-10 border-l border-border" />}
             </div>
             <div className="divide-y divide-border">
                 {rows.map((row) => (
@@ -41,9 +43,10 @@ export const KeyValueEditor = ({ rows, onChange, placeholderKey = 'Key', placeho
                         </div>
                         <Input
                             value={row.key}
-                            onChange={(e) => update(row.id, 'key', e.target.value)}
-                            placeholder={placeholderKey}
-                            className="h-9 border-0 border-l border-border rounded-none focus-visible:ring-0 focus-visible:bg-primary-soft/50 text-sm mono bg-transparent"
+                            onChange={(e) => !readonlyKey && update(row.id, 'key', e.target.value)}
+                            readOnly={readonlyKey}
+                            placeholder={readonlyKey ? '' : placeholderKey}
+                            className={`h-9 border-0 border-l border-border rounded-none focus-visible:ring-0 focus-visible:bg-primary-soft/50 text-sm mono bg-transparent ${readonlyKey ? 'text-muted-foreground cursor-default select-none' : ''}`}
                         />
                         <Input
                             value={row.value}
@@ -59,21 +62,30 @@ export const KeyValueEditor = ({ rows, onChange, placeholderKey = 'Key', placeho
                                 className="h-9 border-0 border-l border-border rounded-none focus-visible:ring-0 focus-visible:bg-primary-soft/50 text-sm bg-transparent"
                             />
                         )}
-                        <button
-                            onClick={() => remove(row.id)}
-                            className="w-10 flex items-center justify-center border-l border-border text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                            <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {!readonlyKey && (
+                            <button
+                                onClick={() => remove(row.id)}
+                                className="w-10 flex items-center justify-center border-l border-border text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                        )}
                     </div>
                 ))}
             </div>
-            <div className="p-2 bg-secondary/30 flex justify-between items-center">
-                <Button variant="ghost" size="sm" className="h-7 text-xs text-primary hover:bg-primary-soft">
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Bulk Edit
-                </Button>
-                <span className="text-[11px] text-muted-foreground">{rows.filter((r) => r.enabled && r.key).length} active</span>
-            </div>
+            {!readonlyKey && (
+                <div className="p-2 bg-secondary/30 flex justify-between items-center">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs text-primary hover:bg-primary-soft">
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Bulk Edit
+                    </Button>
+                    <span className="text-[11px] text-muted-foreground">{rows.filter((r) => r.enabled && r.key).length} active</span>
+                </div>
+            )}
+            {readonlyKey && (
+                <div className="p-2 bg-secondary/30 flex justify-end items-center">
+                    <span className="text-[11px] text-muted-foreground">{rows.filter((r) => r.enabled).length} variable{rows.filter((r) => r.enabled).length !== 1 ? 's' : ''}</span>
+                </div>
+            )}
         </div>
     );
 };

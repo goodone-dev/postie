@@ -12,12 +12,15 @@ const newRequestTemplate = (overrides = {}) => ({
     method: overrides.method || 'GET',
     url: overrides.url || '',
     params: overrides.params || [{ id: 'p1', key: '', value: '', description: '', enabled: true }],
+    pathVariables: overrides.pathVariables || [],
     headers: overrides.headers || [
         { id: 'h1', key: 'Accept', value: 'application/json', description: '', enabled: true },
         { id: 'h2', key: '', value: '', description: '', enabled: true },
     ],
     body: overrides.body || '',
     bodyType: overrides.bodyType || 'none',
+    bodyFormData: overrides.bodyFormData || [{ id: 'f1', key: '', value: '', description: '', enabled: true }],
+    bodyUrlEncoded: overrides.bodyUrlEncoded || [{ id: 'u1', key: '', value: '', description: '', enabled: true }],
     auth: overrides.auth || { type: 'none' },
     response: null,
     isSending: false,
@@ -49,7 +52,7 @@ export function useTabs() {
     const activeTab = tabs.find((t) => t.id === activeTabId);
 
     const updateTab = useCallback((patch) => {
-        setTabs((ts) => ts.map((t) => (t.id === patch.id ? { ...patch, isDirty: true } : t)));
+        setTabs((ts) => ts.map((t) => (t.id === patch.id ? { ...t, ...patch, isDirty: true } : t)));
     }, []);
 
     const markClean = useCallback((id) => {

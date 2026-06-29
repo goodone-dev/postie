@@ -5,7 +5,7 @@ import { RequestTabsBar } from '@/components/postie/RequestTabsBar';
 import { RequestPanel } from '@/components/postie/RequestPanel';
 import { ResponsePanel } from '@/components/postie/ResponsePanel';
 import { EnvironmentEditor } from '@/components/postie/EnvironmentEditor';
-import { ConfirmDialog, MoveDialog } from '@/components/postie/CrudDialogs';
+import { ConfirmDialog, MoveDialog, SaveRequestDialog } from '@/components/postie/CrudDialogs';
 import { useWorkspaceData } from '@/hooks/useWorkspaceData';
 import { useTabs } from '@/hooks/useTabs';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
@@ -23,6 +23,7 @@ export default function AppWorkspace() {
     const tabsApi = useTabs();
     const { confirm, setConfirm, openConfirm } = useConfirmDialog();
     const [move, setMove] = useState({ open: false, col: null });
+    const [saveRequest, setSaveRequest] = useState({ open: false, config: null });
     const [activeView, setActiveView] = useState('collections');
 
     const {
@@ -64,6 +65,15 @@ export default function AppWorkspace() {
                         : [{ id: 'h1', key: 'Accept', value: 'application/json', description: '', enabled: true }, { id: 'h2', key: '', value: '', description: '', enabled: true }],
                     body: full.body?.raw?.value || '',
                     bodyType: full.body?.type || 'none',
+                    bodyFormData: full.body?.form_data && full.body.form_data.length > 0
+                        ? full.body.form_data.map((p, i) => ({ id: `f${i}`, key: p.key, value: p.value, description: p.description || '', enabled: p.enabled !== false }))
+                        : [{ id: 'f1', key: '', value: '', description: '', enabled: true }],
+                    bodyUrlEncoded: full.body?.url_encoded && full.body.url_encoded.length > 0
+                        ? full.body.url_encoded.map((p, i) => ({ id: `u${i}`, key: p.key, value: p.value, description: p.description || '', enabled: p.enabled !== false }))
+                        : [{ id: 'u1', key: '', value: '', description: '', enabled: true }],
+                    pathVariables: (full.path_variables && full.path_variables.length > 0)
+                        ? full.path_variables.map((p, i) => ({ id: `pv${i}`, key: p.key, value: p.value, description: p.description || '', enabled: p.enabled !== false }))
+                        : [],
                     auth: full.auth || { type: 'none' },
                     isDirty: false,
                 };
@@ -79,7 +89,27 @@ export default function AppWorkspace() {
 
     // Save the active tab to backend
     const handleSaveRequest = useCallback(async () => {
-        if (!activeTab || activeTab.type !== 'request' || !activeTab.sourceId) return;
+        if (!activeTab || activeTab.type !== 'request') return;
+
+        if (!activeTab.sourceId) {
+            setSaveRequest({
+                open: true,
+                config: {
+                    defaultName: activeTab.name,
+                    collections: data.collections,
+                    onSave: async (colId, folderId, name) => {
+                        const payload = { ...activeTab, name };
+                        const res = await data.addRequest(colId, folderId, payload);
+                        if (res) {
+                            tabsApi.updateTab({ id: activeTab.id, sourceId: res.id, name, colId, folderId });
+                            tabsApi.markClean(activeTab.id);
+                        }
+                    }
+                }
+            });
+            return;
+        }
+
         try {
             const payload = {
                 name: activeTab.name,
@@ -99,6 +129,8 @@ export default function AppWorkspace() {
                 body: {
                     type: activeTab.bodyType || 'none',
                     ...(activeTab.bodyType === 'raw' ? { raw: { type: 'json', value: activeTab.body || '' } } : {}),
+                    ...(activeTab.bodyType === 'form-data' ? { form_data: (activeTab.bodyFormData || []).filter(h => h.key).map(h => ({ key: h.key, value: h.value, description: h.description || '', enabled: h.enabled !== false })) } : {}),
+                    ...(activeTab.bodyType === 'x-www-form-urlencoded' ? { url_encoded: (activeTab.bodyUrlEncoded || []).filter(h => h.key).map(h => ({ key: h.key, value: h.value, description: h.description || '', enabled: h.enabled !== false })) } : {}),
                 },
             };
             await UpdateRequest(activeTab.sourceId, payload);
@@ -131,11 +163,26 @@ export default function AppWorkspace() {
                 .filter(h => h.enabled && h.key)
                 .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {});
 
+            let bodyData = activeTab.bodyType !== 'none' ? activeTab.body : '';
+            if (activeTab.bodyType === 'x-www-form-urlencoded') {
+                const searchParams = new URLSearchParams();
+                (activeTab.bodyUrlEncoded || []).filter(h => h.enabled && h.key).forEach(h => searchParams.append(h.key, h.value));
+                bodyData = searchParams.toString();
+                headers['Content-Type'] = 'application/x-www-form-urlencoded';
+            }
+
+            let finalUrl = activeTab.url || '';
+
+            // Substitute path variables (e.g. :id -> value)
+            (activeTab.pathVariables || []).filter(p => p.enabled && p.key).forEach(p => {
+                finalUrl = finalUrl.replace(new RegExp(`:${p.key}\\b`, 'g'), encodeURIComponent(p.value));
+            });
+
             const payload = {
-                url: activeTab.url,
+                url: finalUrl,
                 method: activeTab.method,
                 headers: headers,
-                body: activeTab.bodyType !== 'none' ? activeTab.body : ''
+                body: bodyData
             };
 
             const res = await SendRequest(payload);
@@ -273,6 +320,7 @@ export default function AppWorkspace() {
             </footer>
 
             <ConfirmDialog open={confirm.open} onOpenChange={(o) => setConfirm((c) => ({ ...c, open: o }))} config={confirm.config} />
+            <SaveRequestDialog open={saveRequest.open} onOpenChange={(o) => setSaveRequest((s) => ({ ...s, open: o }))} config={saveRequest.config} />
             <MoveDialog
                 open={move.open}
                 onOpenChange={(o) => setMove((m) => ({ ...m, open: o }))}
