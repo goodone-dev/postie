@@ -105,21 +105,10 @@ function makeCollectionCrud({ collections, setCollections, activeWorkspaceId }) 
                 if (willExpand && !col?.loaded) {
                     const c = await GetCollection(id);
                     setCollections((cs) => {
-                        const old = cs.find((oc) => oc.id === id);
-                        const mapFolders = (folders) =>
-                            (folders || []).map((f) => {
-                                const oldFolder = findFolder(old?.folders, f.id);
-                                return {
-                                    ...f,
-                                    expanded: oldFolder?.expanded ?? false,
-                                    folders: mapFolders(f.folders),
-                                    requests: f.requests || [],
-                                };
-                            });
                         const updated = {
                             ...c,
                             favorite: c.is_favorite,
-                            folders: mapFolders(c.folders),
+                            folders: c.folders,
                             requests: c.requests || [],
                             expanded: true,
                             loaded: true,
