@@ -68,7 +68,7 @@ export const ResponsePanel = ({ response, isSending }) => {
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Status</span>
                     <span className={cn('px-2 py-0.5 rounded-md text-xs font-semibold mono', statusColors[statusKind])} data-testid="response-status">
-                        {response.status} {response.statusText}
+                        {response.statusText}
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
