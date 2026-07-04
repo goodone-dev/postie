@@ -116,7 +116,7 @@ export default function AppWorkspace() {
                 method: activeTab.method,
                 url: activeTab.url || '',
                 params: (activeTab.params || []).filter(p => p.key).map(p => ({ key: p.key, value: p.value, description: p.description || '', enabled: p.enabled !== false })),
-                path_variables: [],
+                path_variables: (activeTab.pathVariables || []).filter(p => p.key).map(p => ({ key: p.key, value: p.value, description: p.description || '', enabled: p.enabled !== false })),
                 auth: (() => {
                     const a = activeTab.auth || { type: 'none' };
                     const base = { type: a.type };
