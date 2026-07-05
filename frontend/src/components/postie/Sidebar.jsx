@@ -22,6 +22,7 @@ import {
     FileText,
     GitBranch,
     History,
+    StarOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -309,7 +310,7 @@ const CollectionRow = ({ col, data, onOpenRequest, onMove, editApi, dnd, openCon
     const isRenaming = edit?.mode === 'rename' && edit.kind === 'collection' && edit.id === col.id;
 
     const items = [
-        { label: col.favorite ? 'Unfavorite' : 'Favorite', icon: Star, testId: `collection-favorite-${col.id}`, onClick: () => data.toggleFavorite(col.id) },
+        { label: col.favorite ? 'Unfavorite' : 'Favorite', icon: col.favorite ? StarOff : Star, testId: `collection-favorite-${col.id}`, onClick: () => data.toggleFavorite(col.id) },
         {
             label: 'Add Request', icon: FilePlus2, testId: `collection-add-request-${col.id}`, onClick: async () => {
                 if (!col.expanded) await data.toggleCollection(col.id);
