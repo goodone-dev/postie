@@ -11,6 +11,7 @@ import { useTabs } from '@/hooks/useTabs';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import { cn } from '@/lib/utils';
 import { SendRequest, GetRequest, UpdateRequest } from '@/wailsjs/go/main/App';
+import { resolveEnvVars } from '@/components/postie/RequestPanel';
 
 function useConfirmDialog() {
     const [confirm, setConfirm] = useState({ open: false, config: null });
@@ -74,7 +75,13 @@ export default function AppWorkspace() {
                     pathVariables: (full.path_variables && full.path_variables.length > 0)
                         ? full.path_variables.map((p, i) => ({ id: `pv${i}`, key: p.key, value: p.value, description: p.description || '', enabled: p.enabled !== false }))
                         : [],
-                    auth: full.auth || { type: 'none' },
+                    auth: (() => {
+                        const a = full.auth || { type: 'none' };
+                        if (a.type === 'bearer') return { type: 'bearer', token: a.bearer?.token || a.token || '' };
+                        if (a.type === 'basic') return { type: 'basic', username: a.basic?.username || a.username || '', password: a.basic?.password || a.password || '' };
+                        if (a.type === 'apikey') return { type: 'apikey', key: a.api_key?.key || a.key || '', apiValue: a.api_key?.value || a.apiValue || '' };
+                        return { type: a.type || 'none' };
+                    })(),
                     isDirty: false,
                 };
                 openRequest(mapped);
@@ -122,7 +129,7 @@ export default function AppWorkspace() {
                     const base = { type: a.type };
                     if (a.type === 'bearer' && a.token) base.bearer = { token: a.token };
                     if (a.type === 'basic') base.basic = { username: a.username || '', password: a.password || '' };
-                    if (a.type === 'apikey') base.api_key = { key: a.key || '', value: a.value || '' };
+                    if (a.type === 'apikey') base.api_key = { key: a.key || '', value: a.apiValue || '' };
                     return base;
                 })(),
                 headers: (activeTab.headers || []).filter(h => h.key).map(h => ({ key: h.key, value: h.value, description: h.description || '', enabled: h.enabled !== false })),
@@ -157,26 +164,44 @@ export default function AppWorkspace() {
         if (!activeTab || activeTab.type !== 'request') return;
         setTabs((ts) => ts.map((t) => (t.id === activeTab.id ? { ...t, isSending: true } : t)));
 
+        // Snapshot active env vars at send time
+        const envVarsSnapshot = (data.environments.find((e) => e.active)?.variables || []).filter((v) => v.enabled !== false && v.key);
+        const resolve = (text) => resolveEnvVars(text, envVarsSnapshot);
+
         try {
             const start = performance.now();
             const headers = activeTab.headers
                 .filter(h => h.enabled && h.key)
-                .reduce((acc, h) => ({ ...acc, [h.key]: h.value }), {});
+                .reduce((acc, h) => ({ ...acc, [resolve(h.key)]: resolve(h.value) }), {});
 
-            let bodyData = activeTab.bodyType !== 'none' ? activeTab.body : '';
+            let bodyData = activeTab.bodyType !== 'none' ? resolve(activeTab.body || '') : '';
             if (activeTab.bodyType === 'x-www-form-urlencoded') {
                 const searchParams = new URLSearchParams();
-                (activeTab.bodyUrlEncoded || []).filter(h => h.enabled && h.key).forEach(h => searchParams.append(h.key, h.value));
+                (activeTab.bodyUrlEncoded || []).filter(h => h.enabled && h.key).forEach(h => searchParams.append(resolve(h.key), resolve(h.value)));
                 bodyData = searchParams.toString();
                 headers['Content-Type'] = 'application/x-www-form-urlencoded';
             }
+            if (activeTab.bodyType === 'form-data') {
+                // form-data values resolved individually — body stays as-is for structured build
+            }
 
-            let finalUrl = activeTab.url || '';
+            let finalUrl = resolve(activeTab.url || '');
 
             // Substitute path variables (e.g. :id -> value)
             (activeTab.pathVariables || []).filter(p => p.enabled && p.key).forEach(p => {
-                finalUrl = finalUrl.replace(new RegExp(`:${p.key}\\b`, 'g'), encodeURIComponent(p.value));
+                finalUrl = finalUrl.replace(new RegExp(`:${p.key}\\b`, 'g'), encodeURIComponent(resolve(p.value)));
             });
+
+            // Resolve auth
+            const auth = activeTab.auth || { type: 'none' };
+            if (auth.type === 'bearer' && auth.token) {
+                headers['Authorization'] = `Bearer ${resolve(auth.token)}`;
+            } else if (auth.type === 'basic') {
+                const creds = btoa(`${resolve(auth.username || '')}:${resolve(auth.password || '')}`);
+                headers['Authorization'] = `Basic ${creds}`;
+            } else if (auth.type === 'apikey') {
+                headers[resolve(auth.key || 'X-API-Key')] = resolve(auth.apiValue || '');
+            }
 
             const payload = {
                 url: finalUrl,
@@ -246,6 +271,7 @@ export default function AppWorkspace() {
 
     const activeEnv = data.environments.find((e) => e.active);
     const activeEnvForTab = activeTab?.type === 'environment' ? data.environments.find((e) => e.id === activeTab.envId) : null;
+    const activeEnvVars = (activeEnv?.variables || []).filter((v) => v.enabled !== false && v.key);
 
     return (
         <div className="h-screen w-screen flex flex-col bg-background overflow-hidden text-foreground">
@@ -292,7 +318,7 @@ export default function AppWorkspace() {
                         {activeTab?.type === 'request' && (
                             <PanelGroup direction="vertical" className="flex-1 min-h-0">
                                 <Panel defaultSize={55} minSize={25}>
-                                    <RequestPanel request={activeTab} onUpdate={updateTab} onSend={handleSend} onSave={handleSaveRequest} />
+                                    <RequestPanel request={activeTab} onUpdate={updateTab} onSend={handleSend} onSave={handleSaveRequest} envVariables={activeEnvVars} />
                                 </Panel>
                                 <ResizeHandle horizontal />
                                 <Panel defaultSize={45} minSize={20}>

@@ -1,10 +1,18 @@
 import React from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
+import { EnvInput } from './EnvAutocomplete';
 
-export const KeyValueEditor = ({ rows, onChange, placeholderKey = 'Key', placeholderValue = 'Value', showDescription = true, readonlyKey = false }) => {
+export const KeyValueEditor = ({
+    rows,
+    onChange,
+    placeholderKey = 'Key',
+    placeholderValue = 'Value',
+    showDescription = true,
+    readonlyKey = false,
+    envVariables = [],
+}) => {
     const update = (id, field, value) => {
         const next = rows.map((r) => (r.id === id ? { ...r, [field]: value } : r));
         // Auto-add empty row (only for editable key mode)
@@ -21,6 +29,8 @@ export const KeyValueEditor = ({ rows, onChange, placeholderKey = 'Key', placeho
         if (next.length === 0) next = [{ id: `kv-${Date.now()}`, key: '', value: '', description: '', enabled: true }];
         onChange(next);
     };
+
+    const inputBase = 'h-9 border-0 border-l border-border rounded-none text-sm mono bg-transparent focus:outline-none focus-visible:ring-0 focus-visible:bg-primary-soft/50 px-3 w-full';
 
     return (
         <div className="rounded-lg border border-border overflow-hidden bg-card">
@@ -41,27 +51,43 @@ export const KeyValueEditor = ({ rows, onChange, placeholderKey = 'Key', placeho
                                 className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                             />
                         </div>
-                        <Input
-                            value={row.key}
-                            onChange={(e) => !readonlyKey && update(row.id, 'key', e.target.value)}
-                            readOnly={readonlyKey}
-                            placeholder={readonlyKey ? '' : placeholderKey}
-                            className={`h-9 border-0 border-l border-border rounded-none focus-visible:ring-0 focus-visible:bg-primary-soft/50 text-sm mono bg-transparent ${readonlyKey ? 'text-muted-foreground cursor-default select-none' : ''}`}
-                        />
-                        <Input
+
+                        {/* Key cell */}
+                        {readonlyKey ? (
+                            <input
+                                value={row.key}
+                                readOnly
+                                className={`${inputBase} text-muted-foreground cursor-default select-none`}
+                            />
+                        ) : (
+                            <EnvInput
+                                envVariables={envVariables}
+                                value={row.key}
+                                onChange={(e) => update(row.id, 'key', e.target.value)}
+                                placeholder={placeholderKey}
+                                className={inputBase}
+                            />
+                        )}
+
+                        {/* Value cell */}
+                        <EnvInput
+                            envVariables={envVariables}
                             value={row.value}
                             onChange={(e) => update(row.id, 'value', e.target.value)}
                             placeholder={placeholderValue}
-                            className="h-9 border-0 border-l border-border rounded-none focus-visible:ring-0 focus-visible:bg-primary-soft/50 text-sm mono bg-transparent"
+                            className={inputBase}
                         />
+
+                        {/* Description cell */}
                         {showDescription && (
-                            <Input
+                            <input
                                 value={row.description}
                                 onChange={(e) => update(row.id, 'description', e.target.value)}
                                 placeholder="Description"
-                                className="h-9 border-0 border-l border-border rounded-none focus-visible:ring-0 focus-visible:bg-primary-soft/50 text-sm bg-transparent"
+                                className={`${inputBase} font-sans`}
                             />
                         )}
+
                         {!readonlyKey && (
                             <button
                                 onClick={() => remove(row.id)}

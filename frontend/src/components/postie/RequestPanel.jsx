@@ -1,7 +1,6 @@
 import React from 'react';
 import { Send, Save, ChevronDown, Code2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
     DropdownMenu,
@@ -15,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { KeyValueEditor } from './KeyValueEditor';
 import { MethodLabel } from './MethodBadge';
+import { EnvInput, EnvTextarea } from './EnvAutocomplete';
 import { cn } from '@/lib/utils';
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
@@ -29,7 +29,19 @@ const methodColorMap = {
     OPTIONS: 'text-muted-foreground',
 };
 
-export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
+/**
+ * Replace all {{key}} occurrences in `text` with their env value.
+ * Falls back to the original placeholder if the key is not found.
+ */
+export function resolveEnvVars(text, envVariables = []) {
+    if (!text || !envVariables.length) return text;
+    return text.replace(/\{\{([^{}]+)\}\}/g, (match, key) => {
+        const found = envVariables.find((v) => v.key === key.trim());
+        return found !== undefined ? found.value : match;
+    });
+}
+
+export const RequestPanel = ({ request, onUpdate, onSend, onSave, envVariables = [] }) => {
     const update = (patch) => onUpdate({ ...request, ...patch });
 
     return (
@@ -51,7 +63,7 @@ export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
                     <div className="flex items-stretch flex-1 rounded-lg border border-border bg-card shadow-soft overflow-hidden focus-within:border-primary focus-within:shadow-glow transition-all">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <button data-testid="method-select-trigger" className="flex items-center gap-1.5 px-3 hover:bg-secondary/60 border-r border-border min-w-[110px] justify-between">
+                                <button data-testid="method-select-trigger" className="flex items-center gap-1.5 px-3 hover:bg-secondary/60 border-r border-border min-w-[110px] justify-between rounded-l-lg">
                                     <MethodLabel method={request.method} className="text-[13px]" />
                                     <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                                 </button>
@@ -64,95 +76,74 @@ export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
                                 ))}
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <Input
-                            data-testid="request-url-input"
-                            value={request.url}
-                            onChange={(e) => {
-                                const newUrl = e.target.value;
-                                const oldUrl = request.url || '';
-                                const oldKeys = Array.from(oldUrl.matchAll(/:([a-zA-Z0-9_-]+)/g)).map(m => m[1]);
-                                const newKeys = Array.from(newUrl.matchAll(/:([a-zA-Z0-9_-]+)/g)).map(m => m[1]);
 
-                                // Sync pathVariables: add/rename/remove based on URL changes
-                                const newPathVars = [...(request.pathVariables || [])];
+                        <EnvInput
+                                data-testid="request-url-input"
+                                envVariables={envVariables}
+                                value={request.url}
+                                onChange={(e) => {
+                                    const newUrl = e.target.value;
+                                    const oldUrl = request.url || '';
+                                    const oldKeys = Array.from(oldUrl.matchAll(/:([a-zA-Z0-9_-]+)/g)).map(m => m[1]);
+                                    const newKeys = Array.from(newUrl.matchAll(/:([a-zA-Z0-9_-]+)/g)).map(m => m[1]);
 
-                                for (let i = 0; i < Math.max(oldKeys.length, newKeys.length); i++) {
-                                    const oldKey = oldKeys[i];
-                                    const newKey = newKeys[i];
-
-                                    if (oldKey && newKey && oldKey !== newKey) {
-                                        // Renamed: update existing entry or add new one
-                                        const idx = newPathVars.findIndex(p => p.key === oldKey);
-                                        if (idx >= 0) {
-                                            newPathVars[idx] = { ...newPathVars[idx], key: newKey };
-                                        } else if (!newPathVars.find(p => p.key === newKey)) {
-                                            newPathVars.push({ id: `pv${Date.now()}${Math.random()}`, key: newKey, value: '', description: '', enabled: true });
-                                        }
-                                    } else if (oldKey && !newKey) {
-                                        // Removed: delete the entry
-                                        const idx = newPathVars.findIndex(p => p.key === oldKey);
-                                        if (idx >= 0) newPathVars.splice(idx, 1);
-                                    } else if (!oldKey && newKey) {
-                                        // Added: insert new entry if not already there
-                                        if (!newPathVars.find(p => p.key === newKey)) {
-                                            newPathVars.push({ id: `pv${Date.now()}${Math.random()}`, key: newKey, value: '', description: '', enabled: true });
+                                    // Sync pathVariables
+                                    const newPathVars = [...(request.pathVariables || [])];
+                                    for (let i = 0; i < Math.max(oldKeys.length, newKeys.length); i++) {
+                                        const oldKey = oldKeys[i];
+                                        const newKey = newKeys[i];
+                                        if (oldKey && newKey && oldKey !== newKey) {
+                                            const idx = newPathVars.findIndex(p => p.key === oldKey);
+                                            if (idx >= 0) {
+                                                newPathVars[idx] = { ...newPathVars[idx], key: newKey };
+                                            } else if (!newPathVars.find(p => p.key === newKey)) {
+                                                newPathVars.push({ id: `pv${Date.now()}${Math.random()}`, key: newKey, value: '', description: '', enabled: true });
+                                            }
+                                        } else if (oldKey && !newKey) {
+                                            const idx = newPathVars.findIndex(p => p.key === oldKey);
+                                            if (idx >= 0) newPathVars.splice(idx, 1);
+                                        } else if (!oldKey && newKey) {
+                                            if (!newPathVars.find(p => p.key === newKey)) {
+                                                newPathVars.push({ id: `pv${Date.now()}${Math.random()}`, key: newKey, value: '', description: '', enabled: true });
+                                            }
                                         }
                                     }
-                                }
 
-                                // Sync query params
-                                let searchParams = [];
-                                try {
-                                    const urlObj = new URL(newUrl.includes('://') ? newUrl : `http://dummy/${newUrl}`);
-                                    searchParams = Array.from(urlObj.searchParams.entries()).filter(([k, v]) => k || v);
-                                } catch (e) {
-                                    // ignore invalid URL
-                                }
+                                    // Sync query params
+                                    let searchParams = [];
+                                    try {
+                                        const urlObj = new URL(newUrl.includes('://') ? newUrl : `http://dummy/${newUrl}`);
+                                        searchParams = Array.from(urlObj.searchParams.entries()).filter(([k, v]) => k || v);
+                                    } catch (_) { /* ignore */ }
 
-                                const newParams = [];
-                                let searchParamsIdx = 0;
-
-                                for (let i = 0; i < request.params.length; i++) {
-                                    const p = request.params[i];
-                                    
-                                    // Strip completely empty params so they don't get stuck in the middle
-                                    if (!p.key && !p.value) {
-                                        continue;
+                                    const newParams = [];
+                                    let searchParamsIdx = 0;
+                                    for (let i = 0; i < request.params.length; i++) {
+                                        const p = request.params[i];
+                                        if (!p.key && !p.value) continue;
+                                        if (!p.enabled) { newParams.push(p); continue; }
+                                        if (searchParamsIdx < searchParams.length) {
+                                            const [k, v] = searchParams[searchParamsIdx];
+                                            newParams.push({ ...p, key: k, value: v });
+                                            searchParamsIdx++;
+                                        }
                                     }
-                                    
-                                    // Keep disabled params
-                                    if (!p.enabled) {
-                                        newParams.push(p);
-                                        continue;
-                                    }
-                                    
-                                    // It's an enabled param
-                                    if (searchParamsIdx < searchParams.length) {
+                                    while (searchParamsIdx < searchParams.length) {
                                         const [k, v] = searchParams[searchParamsIdx];
-                                        newParams.push({ ...p, key: k, value: v });
+                                        newParams.push({ id: `p${Date.now()}${Math.random()}`, key: k, value: v, description: '', enabled: true });
                                         searchParamsIdx++;
                                     }
-                                }
+                                    const last = newParams[newParams.length - 1];
+                                    if (!last || last.key || last.value) {
+                                        newParams.push({ id: `p${Date.now()}${Math.random()}`, key: '', value: '', description: '', enabled: true });
+                                    }
 
-                                // If there are remaining search params in the URL, add them
-                                while (searchParamsIdx < searchParams.length) {
-                                    const [k, v] = searchParams[searchParamsIdx];
-                                    newParams.push({ id: `p${Date.now()}${Math.random()}`, key: k, value: v, description: '', enabled: true });
-                                    searchParamsIdx++;
-                                }
-
-                                // Ensure there is an empty row at the end
-                                const last = newParams[newParams.length - 1];
-                                if (!last || last.key || last.value) {
-                                    newParams.push({ id: `p${Date.now()}${Math.random()}`, key: '', value: '', description: '', enabled: true });
-                                }
-
-                                update({ url: newUrl, pathVariables: newPathVars, params: newParams });
-                            }}
-                            placeholder="Enter request URL"
-                            className="flex-1 border-0 rounded-none focus-visible:ring-0 mono text-sm h-11 bg-transparent"
-                            onKeyDown={(e) => e.key === 'Enter' && onSend()}
-                        />
+                                    update({ url: newUrl, pathVariables: newPathVars, params: newParams });
+                                }}
+                                placeholder="Enter request URL"
+                                className="flex-1 border-0 rounded-none focus-visible:ring-0 mono text-sm h-11 bg-transparent px-3 w-full outline-none focus:outline-none"
+                                onKeyDown={(e) => e.key === 'Enter' && onSend()}
+                            />
                     </div>
                     <Button
                         data-testid="send-request-btn"
@@ -225,20 +216,19 @@ export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
                     <TabsContent value="params" className="mt-0 space-y-6">
                         <div>
                             <SectionHeader title="Query Params" description="Append key-value pairs to the request URL" />
-                            <KeyValueEditor 
-                                rows={request.params} 
+                            <KeyValueEditor
+                                rows={request.params}
+                                envVariables={envVariables}
                                 onChange={(rows) => {
                                     let currentUrl = request.url || '';
                                     const queryStart = currentUrl.indexOf('?');
                                     const baseUrl = queryStart >= 0 ? currentUrl.substring(0, queryStart) : currentUrl;
-                                    
                                     const qp = new URLSearchParams();
                                     rows.filter(p => p.enabled && (p.key || p.value)).forEach(p => qp.append(p.key, p.value));
                                     const qs = qp.toString();
-                                    
                                     const newUrl = qs ? `${baseUrl}?${qs}` : baseUrl;
                                     update({ params: rows, url: newUrl });
-                                }} 
+                                }}
                             />
                         </div>
                         {(request.pathVariables || []).length > 0 && (
@@ -246,6 +236,7 @@ export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
                                 <SectionHeader title="Path Variables" description="Values substituted into the URL path (e.g. :id)" />
                                 <KeyValueEditor
                                     rows={request.pathVariables}
+                                    envVariables={envVariables}
                                     onChange={(rows) => update({ pathVariables: rows })}
                                     readonlyKey
                                 />
@@ -255,15 +246,15 @@ export const RequestPanel = ({ request, onUpdate, onSend, onSave }) => {
 
                     <TabsContent value="headers" className="mt-0">
                         <SectionHeader title="Headers" description="Headers are sent along with the request" />
-                        <KeyValueEditor rows={request.headers} onChange={(rows) => update({ headers: rows })} />
+                        <KeyValueEditor rows={request.headers} envVariables={envVariables} onChange={(rows) => update({ headers: rows })} />
                     </TabsContent>
 
                     <TabsContent value="auth" className="mt-0">
-                        <AuthEditor auth={request.auth} onChange={(auth) => update({ auth })} />
+                        <AuthEditor auth={request.auth} onChange={(auth) => update({ auth })} envVariables={envVariables} />
                     </TabsContent>
 
                     <TabsContent value="body" className="mt-0">
-                        <BodyEditor request={request} update={update} />
+                        <BodyEditor request={request} update={update} envVariables={envVariables} />
                     </TabsContent>
 
                     <TabsContent value="scripts" className="mt-0">
@@ -290,7 +281,7 @@ const SectionHeader = ({ title, description }) => (
     </div>
 );
 
-const AuthEditor = ({ auth, onChange }) => (
+const AuthEditor = ({ auth, onChange, envVariables = [] }) => (
     <div className="max-w-2xl">
         <SectionHeader title="Authorization" description="Configure auth credentials sent with the request" />
         <div className="grid sm:grid-cols-[180px_1fr] gap-6">
@@ -318,11 +309,12 @@ const AuthEditor = ({ auth, onChange }) => (
                 {auth.type === 'bearer' && (
                     <div>
                         <Label className="text-xs text-muted-foreground mb-2 block">Token</Label>
-                        <Input
-                            value={auth.token}
+                        <EnvInput
+                            envVariables={envVariables}
+                            value={auth.token || ''}
                             onChange={(e) => onChange({ ...auth, token: e.target.value })}
                             placeholder="Paste your bearer token"
-                            className="mono text-sm bg-card"
+                            className="mono text-sm bg-card h-9 rounded-md border border-input px-3 w-full outline-none focus:ring-1 focus:ring-ring"
                         />
                     </div>
                 )}
@@ -330,11 +322,24 @@ const AuthEditor = ({ auth, onChange }) => (
                     <div className="space-y-3">
                         <div>
                             <Label className="text-xs text-muted-foreground mb-2 block">Username</Label>
-                            <Input placeholder="username" className="mono text-sm bg-card" />
+                            <EnvInput
+                                envVariables={envVariables}
+                                value={auth.username || ''}
+                                onChange={(e) => onChange({ ...auth, username: e.target.value })}
+                                placeholder="username"
+                                className="mono text-sm bg-card h-9 rounded-md border border-input px-3 w-full outline-none focus:ring-1 focus:ring-ring"
+                            />
                         </div>
                         <div>
                             <Label className="text-xs text-muted-foreground mb-2 block">Password</Label>
-                            <Input type="password" placeholder="••••••••" className="mono text-sm bg-card" />
+                            <EnvInput
+                                envVariables={envVariables}
+                                value={auth.password || ''}
+                                onChange={(e) => onChange({ ...auth, password: e.target.value })}
+                                placeholder="••••••••"
+                                type="password"
+                                className="mono text-sm bg-card h-9 rounded-md border border-input px-3 w-full outline-none focus:ring-1 focus:ring-ring"
+                            />
                         </div>
                     </div>
                 )}
@@ -342,14 +347,27 @@ const AuthEditor = ({ auth, onChange }) => (
                     <div className="space-y-3">
                         <div>
                             <Label className="text-xs text-muted-foreground mb-2 block">Key</Label>
-                            <Input placeholder="X-API-Key" className="mono text-sm bg-card" />
+                            <EnvInput
+                                envVariables={envVariables}
+                                value={auth.key || ''}
+                                onChange={(e) => onChange({ ...auth, key: e.target.value })}
+                                placeholder="X-API-Key"
+                                className="mono text-sm bg-card h-9 rounded-md border border-input px-3 w-full outline-none focus:ring-1 focus:ring-ring"
+                            />
                         </div>
                         <div>
                             <Label className="text-xs text-muted-foreground mb-2 block">Value</Label>
-                            <Input placeholder="your_api_key" className="mono text-sm bg-card" />
+                            <EnvInput
+                                envVariables={envVariables}
+                                value={auth.apiValue || ''}
+                                onChange={(e) => onChange({ ...auth, apiValue: e.target.value })}
+                                placeholder="your_api_key"
+                                className="mono text-sm bg-card h-9 rounded-md border border-input px-3 w-full outline-none focus:ring-1 focus:ring-ring"
+                            />
                         </div>
                     </div>
                 )}
+
                 {auth.type === 'oauth2' && (
                     <div className="rounded-lg border border-border bg-card p-5">
                         <p className="text-sm font-medium mb-2">OAuth 2.0</p>
@@ -362,7 +380,7 @@ const AuthEditor = ({ auth, onChange }) => (
     </div>
 );
 
-const BodyEditor = ({ request, update }) => {
+const BodyEditor = ({ request, update, envVariables = [] }) => {
     const types = [
         { id: 'none', label: 'none' },
         { id: 'form-data', label: 'form-data' },
@@ -371,7 +389,6 @@ const BodyEditor = ({ request, update }) => {
         { id: 'binary', label: 'binary' },
         { id: 'graphql', label: 'GraphQL' },
     ];
-    const isRaw = request.bodyType === 'raw' || request.bodyType === 'none';
 
     return (
         <div>
@@ -417,22 +434,24 @@ const BodyEditor = ({ request, update }) => {
                     <p className="text-sm text-muted-foreground">This request does not have a body</p>
                 </div>
             )}
-            {isRaw && request.bodyType === 'raw' && (
+            {request.bodyType === 'raw' && (
                 <div className="rounded-lg border border-border bg-card overflow-hidden">
                     <div className="flex bg-secondary/50 border-b border-border">
                         <div className="px-3 py-2 text-[11px] text-muted-foreground mono uppercase tracking-wider font-semibold">JSON</div>
                     </div>
-                    <Textarea
+                    <EnvTextarea
+                        envVariables={envVariables}
                         value={request.body}
                         onChange={(e) => update({ body: e.target.value })}
                         spellCheck={false}
-                        className="min-h-[260px] mono text-sm border-0 rounded-none focus-visible:ring-0 bg-card resize-none leading-relaxed"
+                        className="min-h-[260px] mono text-sm border-0 rounded-none focus-visible:ring-0 bg-card resize-none leading-relaxed w-full p-3 outline-none"
                     />
                 </div>
             )}
             {request.bodyType === 'form-data' && (
                 <KeyValueEditor
                     rows={request.bodyFormData}
+                    envVariables={envVariables}
                     onChange={(rows) => update({ bodyFormData: rows })}
                     placeholderKey="key"
                     placeholderValue="value"
@@ -441,6 +460,7 @@ const BodyEditor = ({ request, update }) => {
             {request.bodyType === 'x-www-form-urlencoded' && (
                 <KeyValueEditor
                     rows={request.bodyUrlEncoded}
+                    envVariables={envVariables}
                     onChange={(rows) => update({ bodyUrlEncoded: rows })}
                     placeholderKey="key"
                     placeholderValue="value"
@@ -483,7 +503,7 @@ const SettingsPanel = () => (
         <SettingRow title="Follow redirects" description="Follow HTTP 3xx redirects." defaultChecked />
         <SettingRow title="Strict SSL" description="Verify SSL certificates." defaultChecked />
         <SettingRow title="Encode URL automatically" description="Automatically encode URL parameters." defaultChecked />
-        <SettingRow title="Disable cookie jar" description="Don’t store cookies from this request." />
+        <SettingRow title="Disable cookie jar" description="Don't store cookies from this request." />
     </div>
 );
 
