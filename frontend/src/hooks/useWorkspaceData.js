@@ -554,10 +554,38 @@ export function useWorkspaceData() {
     const [workspaces, setWorkspaces] = useState([]);
     const [collections, setCollections] = useState([]);
     const [environments, setEnvironments] = useState([]);
-    const [history, setHistory] = useState(() => loadState('history', []));
 
     const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => loadState('activeWorkspaceId', null));
-    const [activeEnvironmentId, setActiveEnvironmentId] = useState(() => loadState('activeEnvironmentId', null));
+
+    const [wsState, setWsState] = useState(() => ({
+        workspaceId: activeWorkspaceId,
+        history: loadState(`history_${activeWorkspaceId}`, []),
+        activeEnvironmentId: loadState(`activeEnvironmentId_${activeWorkspaceId}`, null),
+    }));
+
+    if (wsState.workspaceId !== activeWorkspaceId) {
+        setWsState({
+            workspaceId: activeWorkspaceId,
+            history: loadState(`history_${activeWorkspaceId}`, []),
+            activeEnvironmentId: loadState(`activeEnvironmentId_${activeWorkspaceId}`, null),
+        });
+    }
+
+    const { history, activeEnvironmentId } = wsState;
+
+    const setHistory = useCallback((updater) => {
+        setWsState((prev) => ({
+            ...prev,
+            history: typeof updater === 'function' ? updater(prev.history) : updater,
+        }));
+    }, []);
+
+    const setActiveEnvironmentId = useCallback((updater) => {
+        setWsState((prev) => ({
+            ...prev,
+            activeEnvironmentId: typeof updater === 'function' ? updater(prev.activeEnvironmentId) : updater,
+        }));
+    }, []);
 
     // Load workspaces once on mount
     useEffect(() => {
@@ -590,7 +618,7 @@ export function useWorkspaceData() {
         }).catch((err) => console.error("Failed to list collections:", err));
 
         ListEnvironments(activeWorkspaceId).then((res) => {
-            const savedEnvId = loadState('activeEnvironmentId', null);
+            const savedEnvId = loadState(`activeEnvironmentId_${activeWorkspaceId}`, null);
             setEnvironments(
                 (res || []).map((e) => ({ ...e, active: e.id === savedEnvId }))
             );
@@ -598,8 +626,12 @@ export function useWorkspaceData() {
     }, [activeWorkspaceId]);
 
     useEffect(() => saveState('activeWorkspaceId', activeWorkspaceId), [activeWorkspaceId]);
-    useEffect(() => saveState('activeEnvironmentId', activeEnvironmentId), [activeEnvironmentId]);
-    useEffect(() => saveState('history', history), [history]);
+    useEffect(() => {
+        if (activeWorkspaceId) saveState(`activeEnvironmentId_${activeWorkspaceId}`, activeEnvironmentId);
+    }, [activeEnvironmentId, activeWorkspaceId]);
+    useEffect(() => {
+        if (activeWorkspaceId) saveState(`history_${activeWorkspaceId}`, history);
+    }, [history, activeWorkspaceId]);
 
     const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) || workspaces[0] || {};
 

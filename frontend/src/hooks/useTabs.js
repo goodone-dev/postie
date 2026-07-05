@@ -28,26 +28,54 @@ const newRequestTemplate = (overrides = {}) => ({
     activeTab: 'params',
 });
 
-const DEFAULT_TAB = () =>
-    newRequestTemplate({
-        name: 'Get user by ID',
-        method: 'GET',
-        url: 'https://jsonplaceholder.typicode.com/users/1',
-    });
+const DEFAULT_TAB = () => newRequestTemplate({});
 
 // Manages open tabs (request + environment editor), the active tab, and lifecycle.
-export function useTabs() {
-    const [tabs, setTabs] = useState(() => {
-        const saved = loadState('tabs', null);
-        return Array.isArray(saved) && saved.length > 0 ? saved : [DEFAULT_TAB()];
-    });
-    const [activeTabId, setActiveTabId] = useState(() => {
-        const saved = loadState('activeTabId', null);
-        return tabs.some((t) => t.id === saved) ? saved : tabs[0].id;
+export function useTabs(workspaceId) {
+    const [tabState, setTabState] = useState(() => {
+        const savedTabs = loadState(`tabs_${workspaceId}`, null);
+        const savedActive = loadState(`activeTabId_${workspaceId}`, null);
+        const initialTabs = Array.isArray(savedTabs) && savedTabs.length > 0 ? savedTabs : [DEFAULT_TAB()];
+        return {
+            workspaceId,
+            tabs: initialTabs,
+            activeTabId: initialTabs.some((t) => t.id === savedActive) ? savedActive : initialTabs[0].id,
+        };
     });
 
-    useEffect(() => saveState('tabs', tabs), [tabs]);
-    useEffect(() => saveState('activeTabId', activeTabId), [activeTabId]);
+    if (tabState.workspaceId !== workspaceId) {
+        const savedTabs = loadState(`tabs_${workspaceId}`, null);
+        const savedActive = loadState(`activeTabId_${workspaceId}`, null);
+        const initialTabs = Array.isArray(savedTabs) && savedTabs.length > 0 ? savedTabs : [DEFAULT_TAB()];
+        setTabState({
+            workspaceId,
+            tabs: initialTabs,
+            activeTabId: initialTabs.some((t) => t.id === savedActive) ? savedActive : initialTabs[0].id,
+        });
+    }
+
+    const { tabs, activeTabId } = tabState;
+
+    const setTabs = useCallback((updater) => {
+        setTabState((prev) => ({
+            ...prev,
+            tabs: typeof updater === 'function' ? updater(prev.tabs) : updater,
+        }));
+    }, []);
+
+    const setActiveTabId = useCallback((updater) => {
+        setTabState((prev) => ({
+            ...prev,
+            activeTabId: typeof updater === 'function' ? updater(prev.activeTabId) : updater,
+        }));
+    }, []);
+
+    useEffect(() => {
+        if (workspaceId) saveState(`tabs_${workspaceId}`, tabs);
+    }, [tabs, workspaceId]);
+    useEffect(() => {
+        if (workspaceId) saveState(`activeTabId_${workspaceId}`, activeTabId);
+    }, [activeTabId, workspaceId]);
 
     const activeTab = tabs.find((t) => t.id === activeTabId);
 
@@ -96,7 +124,7 @@ export function useTabs() {
     }, []);
 
     const newTab = useCallback(() => {
-        const t = newRequestTemplate({});
+        const t = DEFAULT_TAB();
         setTabs((ts) => [...ts, t]);
         setActiveTabId(t.id);
     }, []);
@@ -124,20 +152,20 @@ export function useTabs() {
 
     // Close all tabs -> open a single fresh request tab.
     const closeAll = useCallback(() => {
-        const fresh = newRequestTemplate({});
+        const fresh = DEFAULT_TAB();
         setTabs([fresh]);
         setActiveTabId(fresh.id);
     }, []);
 
     // Closing the last tab opens a fresh one. State is computed from the
-    // current render values (never inside a setState updater) so activeTabId
+    // current render values (never inside a setTabState updater) so activeTabId
     // always matches the newly-created tab and the panels never go blank.
     const closeTab = useCallback(
         (id) => {
             const idx = tabs.findIndex((t) => t.id === id);
             const next = tabs.filter((t) => t.id !== id);
             if (next.length === 0) {
-                const fresh = newRequestTemplate({});
+                const fresh = DEFAULT_TAB();
                 setTabs([fresh]);
                 setActiveTabId(fresh.id);
                 return;

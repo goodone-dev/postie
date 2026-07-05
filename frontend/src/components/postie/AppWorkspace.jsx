@@ -21,7 +21,7 @@ function useConfirmDialog() {
 
 export default function AppWorkspace() {
     const data = useWorkspaceData();
-    const tabsApi = useTabs();
+    const tabsApi = useTabs(data.activeWorkspaceId);
     const { confirm, setConfirm, openConfirm } = useConfirmDialog();
     const [move, setMove] = useState({ open: false, col: null });
     const [saveRequest, setSaveRequest] = useState({ open: false, config: null });
