@@ -103,7 +103,6 @@ export default function AppWorkspace() {
                 open: true,
                 config: {
                     defaultName: activeTab.name,
-                    collections: data.collections,
                     onSave: async (colId, folderId, name) => {
                         const payload = { ...activeTab, name };
                         const res = await data.addRequest(colId, folderId, payload);
@@ -346,7 +345,13 @@ export default function AppWorkspace() {
             </footer>
 
             <ConfirmDialog open={confirm.open} onOpenChange={(o) => setConfirm((c) => ({ ...c, open: o }))} config={confirm.config} />
-            <SaveRequestDialog open={saveRequest.open} onOpenChange={(o) => setSaveRequest((s) => ({ ...s, open: o }))} config={saveRequest.config} />
+            <SaveRequestDialog 
+                open={saveRequest.open} 
+                onOpenChange={(o) => setSaveRequest((s) => ({ ...s, open: o }))} 
+                config={saveRequest.config} 
+                collections={data.collections}
+                loadCollection={data.loadCollection}
+            />
             <MoveDialog
                 open={move.open}
                 onOpenChange={(o) => setMove((m) => ({ ...m, open: o }))}

@@ -97,6 +97,23 @@ function makeCollectionCrud({ collections, setCollections, activeWorkspaceId }) 
                 console.error("Failed to delete collection:", err);
             }
         },
+        loadCollection: async (id) => {
+            const col = collections.find((c) => c.id === id);
+            if (!col || col.loaded) return;
+            try {
+                const c = await GetCollection(id);
+                setCollections((cs) => cs.map((oc) => (oc.id === id ? {
+                    ...c,
+                    favorite: c.is_favorite,
+                    folders: c.folders,
+                    requests: c.requests || [],
+                    expanded: oc.expanded,
+                    loaded: true,
+                } : oc)));
+            } catch (err) {
+                console.error("Failed to load collection:", err);
+            }
+        },
         // Toggle open: fetch full data on first open, then just flip expanded flag
         toggleCollection: async (id) => {
             try {

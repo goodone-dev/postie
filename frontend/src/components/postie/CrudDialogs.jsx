@@ -73,8 +73,8 @@ export const MoveDialog = ({ open, onOpenChange, config }) => {
     );
 };
 
-export const SaveRequestDialog = ({ open, onOpenChange, config }) => {
-    const { defaultName = 'New Request', collections = [], onSave } = config || {};
+export const SaveRequestDialog = ({ open, onOpenChange, config, collections = [], loadCollection }) => {
+    const { defaultName = 'New Request', onSave } = config || {};
     const [name, setName] = React.useState(defaultName);
     const [colId, setColId] = React.useState('');
     const [folderId, setFolderId] = React.useState('');
@@ -88,6 +88,13 @@ export const SaveRequestDialog = ({ open, onOpenChange, config }) => {
     }, [open, defaultName]);
 
     const activeCol = collections.find(c => c.id === colId);
+
+    React.useEffect(() => {
+        if (colId && activeCol && !activeCol.loaded && loadCollection) {
+            loadCollection(colId);
+        }
+    }, [colId, activeCol, loadCollection]);
+
     // Flatten folders for the select dropdown
     const flattenFolders = (folders, depth = 0) => {
         let result = [];
