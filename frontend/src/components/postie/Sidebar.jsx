@@ -218,7 +218,7 @@ export const Sidebar = ({ data, onOpenRequest, onOpenEnvironment, onMove, active
                         )}
                         {activeView === 'history' && <HistoryView history={data.history} onOpenRequest={onOpenRequest} />}
                         {activeView === 'environments' && (
-                            <EnvironmentsView data={data} editApi={editApi} onOpenEnvironment={onOpenEnvironment} openConfirm={openConfirm} />
+                            <EnvironmentsView data={data} search={search} editApi={editApi} onOpenEnvironment={onOpenEnvironment} openConfirm={openConfirm} />
                         )}
                     </div>
                 </ScrollArea>
@@ -537,9 +537,12 @@ const HistoryView = ({ history, onOpenRequest }) => (
     </div>
 );
 
-const EnvironmentsView = ({ data, editApi, onOpenEnvironment, openConfirm }) => {
+const EnvironmentsView = ({ data, search, editApi, onOpenEnvironment, openConfirm }) => {
     const { edit } = editApi;
     const creating = edit?.mode === 'create' && edit.kind === 'environment';
+
+    const q = (search || '').toLowerCase();
+    const filtered = data.environments.filter((e) => e.name.toLowerCase().includes(q));
 
     if (data.environments.length === 0 && !creating) {
         return <EmptyView label="environments" onCreate={() => editApi.startCreate('environment')} />;
@@ -553,7 +556,7 @@ const EnvironmentsView = ({ data, editApi, onOpenEnvironment, openConfirm }) => 
                     <InlineEdit placeholder="Environment name" className="text-sm font-medium" onSubmit={editApi.submitCreate} onCancel={editApi.clearEdit} />
                 </div>
             )}
-            {data.environments.map((e) => {
+            {filtered.map((e) => {
                 const isRenaming = edit?.mode === 'rename' && edit.kind === 'environment' && edit.id === e.id;
                 const items = [
                     { label: 'Set active', icon: CheckCircle2, testId: `environment-activate-${e.id}`, onClick: () => data.setActiveEnvironment(e.id) },

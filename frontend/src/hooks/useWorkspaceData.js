@@ -463,11 +463,21 @@ function makeEnvironmentCrud({ environments, setEnvironments, activeWorkspaceId,
                     if (setActiveEnvironmentId) setActiveEnvironmentId(patch.active ? id : null);
                     setEnvironments((es) => es.map((e) => ({ ...e, active: e.id === id })));
                 } else {
-                    const res = await UpdateEnvironment(id, { name: patch.name });
+                    const env = environments.find((e) => e.id === id);
+                    const res = await UpdateEnvironment(id, { name: patch.name, variables: env?.variables || [] });
                     setEnvironments((es) => es.map((e) => (e.id === id ? { ...e, ...res } : e)));
                 }
             } catch (err) {
                 console.error("UpdateEnvironment failed:", err);
+            }
+        },
+        renameEnvironment: async (id, name) => {
+            try {
+                const env = environments.find((e) => e.id === id);
+                const res = await UpdateEnvironment(id, { name, variables: env?.variables || [] });
+                setEnvironments((es) => es.map((e) => (e.id === id ? { ...e, ...res } : e)));
+            } catch (err) {
+                console.error("Failed to rename environment:", err);
             }
         },
         deleteEnvironment: async (id) => {

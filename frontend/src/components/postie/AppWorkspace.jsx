@@ -159,6 +159,38 @@ export default function AppWorkspace() {
         return () => window.removeEventListener('keydown', handler);
     }, [handleSaveRequest]);
 
+    // Synchronize environment tabs on rename/delete
+    useEffect(() => {
+        let changed = false;
+        const nextTabs = tabs.map(t => {
+            if (t.type === 'environment') {
+                const env = data.environments.find(e => e.id === t.envId);
+                if (env && env.name !== t.name) {
+                    changed = true;
+                    return { ...t, name: env.name };
+                }
+            }
+            return t;
+        }).filter(t => {
+            if (t.type === 'environment') {
+                const exists = data.environments.some(e => e.id === t.envId);
+                if (!exists) { changed = true; return false; }
+            }
+            return true;
+        });
+
+        if (changed) {
+            if (nextTabs.length === 0) {
+                tabsApi.closeAll();
+            } else {
+                tabsApi.setTabs(nextTabs);
+                if (!nextTabs.find(t => t.id === tabsApi.activeTabId)) {
+                    tabsApi.setActiveTabId(nextTabs[0].id);
+                }
+            }
+        }
+    }, [data.environments, tabs, tabsApi]);
+
     const handleSend = async () => {
         if (!activeTab || activeTab.type !== 'request') return;
         setTabs((ts) => ts.map((t) => (t.id === activeTab.id ? { ...t, isSending: true } : t)));

@@ -195,12 +195,19 @@ export const EnvDropdown = ({ dropdownRef, open, filtered, activeIndex, onSelect
                                 : 'hover:bg-secondary/60 text-foreground'
                         }`}
                     >
-                        <span className="mono text-[13px] font-medium text-primary truncate flex-shrink-0 max-w-[45%]">
+                        <span className="mono text-[13px] font-medium text-primary truncate flex-shrink-0 max-w-[40%]">
                             {v.key}
                         </span>
-                        <span className="text-[12px] text-muted-foreground truncate min-w-0">
-                            {v.value || <span className="italic opacity-50">empty</span>}
-                        </span>
+                        <div className="flex flex-col flex-1 min-w-0">
+                            <span className="text-[12px] text-muted-foreground truncate min-w-0">
+                                {v.value || <span className="italic opacity-50">empty</span>}
+                            </span>
+                            {v.description && (
+                                <span className="text-[10px] text-muted-foreground/70 truncate min-w-0">
+                                    {v.description}
+                                </span>
+                            )}
+                        </div>
                     </button>
                 ))}
             </div>

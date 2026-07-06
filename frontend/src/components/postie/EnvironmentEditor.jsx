@@ -1,17 +1,38 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Globe } from 'lucide-react';
 import { KeyValueEditor } from './KeyValueEditor';
 import { Badge } from '@/components/ui/badge';
 
-// Environment variable editor shown as a main-area tab. Auto-saves on every edit.
+// Environment variable editor shown as a main-area tab. Auto-saves when focus is lost.
 export const EnvironmentEditor = ({ env, onChange }) => {
-    const rows =
+    const [localVars, setLocalVars] = useState(() =>
         env.variables && env.variables.length > 0
             ? env.variables
-            : [{ id: 'v-empty', key: '', value: '', enabled: true }];
+            : [{ id: 'v-empty', key: '', value: '', enabled: true }]
+    );
+    const containerRef = useRef(null);
+
+    useEffect(() => {
+        setLocalVars(
+            env.variables && env.variables.length > 0
+                ? env.variables
+                : [{ id: 'v-empty', key: '', value: '', enabled: true }]
+        );
+    }, [env.id, env.variables]);
+
+    const handleBlur = (e) => {
+        if (containerRef.current && !containerRef.current.contains(e.relatedTarget)) {
+            onChange(localVars);
+        }
+    };
 
     return (
-        <div className="flex flex-col h-full bg-background" data-testid="environment-editor">
+        <div
+            ref={containerRef}
+            className="flex flex-col h-full bg-background"
+            data-testid="environment-editor"
+            onBlur={handleBlur}
+        >
             <div className="px-5 pt-4 pb-3 border-b border-border bg-card/40">
                 <div className="flex items-center gap-2">
                     <Globe className="h-4 w-4 text-primary" />
@@ -23,7 +44,7 @@ export const EnvironmentEditor = ({ env, onChange }) => {
                     )}
                     <span className="ml-auto text-[11px] text-muted-foreground flex items-center gap-1.5">
                         <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse-soft" />
-                        Changes saved automatically
+                        Changes saved when focus is lost
                     </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -33,8 +54,8 @@ export const EnvironmentEditor = ({ env, onChange }) => {
 
             <div className="flex-1 overflow-auto p-5 scrollbar-thin">
                 <KeyValueEditor
-                    rows={rows}
-                    onChange={(next) => onChange(next)}
+                    rows={localVars}
+                    onChange={setLocalVars}
                     placeholderKey="VARIABLE"
                     placeholderValue="VALUE"
                     showDescription={true}
