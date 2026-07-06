@@ -524,6 +524,22 @@ func (a *App) UpdateEnvironment(id string, payload environment.UpdateEnvironment
 	return env, nil
 }
 
+func (a *App) RenameEnvironment(id string, payload environment.UpdateEnvironmentRequest) (*environment.EnvironmentResponse, error) {
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+
+	env, err := a.environmentUsecase.Rename(a.ctx, uid, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Debugf(a.ctx, "Environment '%s' renamed", env.Name).Write()
+
+	return env, nil
+}
+
 func (a *App) DeleteEnvironment(id string, name string) error {
 	uid, err := uuid.Parse(id)
 	if err != nil {

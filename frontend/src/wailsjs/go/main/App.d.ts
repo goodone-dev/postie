@@ -49,6 +49,8 @@ export function MoveCollection(arg1:string,arg2:collection.MoveCollectionRequest
 
 export function RenameCollection(arg1:string,arg2:string):Promise<collection.CollectionResponse>;
 
+export function RenameEnvironment(arg1:string,arg2:environment.UpdateEnvironmentRequest):Promise<environment.EnvironmentResponse>;
+
 export function RenameFolder(arg1:string,arg2:collection.RenameFolderRequest):Promise<collection.FolderResponse>;
 
 export function RenameRequest(arg1:string,arg2:collection.RenameRequestRequest):Promise<collection.RequestResponse>;

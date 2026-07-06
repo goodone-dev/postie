@@ -8,6 +8,7 @@ import {
     ListEnvironments,
     CreateEnvironment,
     UpdateEnvironment,
+    RenameEnvironment,
     DeleteEnvironment,
     DuplicateEnvironment,
     ListCollections,
@@ -474,7 +475,7 @@ function makeEnvironmentCrud({ environments, setEnvironments, activeWorkspaceId,
         renameEnvironment: async (id, name) => {
             try {
                 const env = environments.find((e) => e.id === id);
-                const res = await UpdateEnvironment(id, { name, variables: env?.variables || [] });
+                const res = await RenameEnvironment(id, { name });
                 setEnvironments((es) => es.map((e) => (e.id === id ? { ...e, ...res } : e)));
             } catch (err) {
                 console.error("Failed to rename environment:", err);

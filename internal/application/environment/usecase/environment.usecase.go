@@ -104,6 +104,29 @@ func (u *environmentUsecase) Update(ctx context.Context, ID uuid.UUID, payload e
 	return &res, nil
 }
 
+func (u *environmentUsecase) Rename(ctx context.Context, ID uuid.UUID, payload environment.UpdateEnvironmentRequest) (*environment.EnvironmentResponse, error) {
+	_, err := u.getEntity(ctx, ID)
+	if err != nil {
+		return nil, err
+	}
+
+	slug := strings.ToLower(strings.ReplaceAll(payload.Name, " ", "-"))
+
+	update := map[string]any{
+		"name": payload.Name,
+		"slug": slug,
+	}
+
+	env, err := u.environmentRepo.UpdateById(ctx, ID, update, nil)
+	if err != nil {
+		logger.Error(ctx, err, "❌ Failed to rename environment").Write()
+		return nil, err
+	}
+
+	res := toEnvironmentResponse(env)
+	return &res, nil
+}
+
 func (u *environmentUsecase) Delete(ctx context.Context, ID uuid.UUID) error {
 	_, err := u.getEntity(ctx, ID)
 	if err != nil {
