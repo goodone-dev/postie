@@ -54,6 +54,7 @@ export const EnvironmentEditor = ({ env, onChange }) => {
 
             <div className="flex-1 overflow-auto p-5 scrollbar-thin">
                 <KeyValueEditor
+                    key={env.id}
                     rows={localVars}
                     onChange={setLocalVars}
                     placeholderKey="VARIABLE"
