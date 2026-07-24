@@ -81,11 +81,11 @@ export function useTabs(workspaceId) {
 
     const updateTab = useCallback((patch) => {
         setTabs((ts) => ts.map((t) => (t.id === patch.id ? { ...t, ...patch, isDirty: true } : t)));
-    }, []);
+    }, [setTabs]);
 
     const markClean = useCallback((id) => {
         setTabs((ts) => ts.map((t) => (t.id === id ? { ...t, isDirty: false } : t)));
-    }, []);
+    }, [setTabs]);
 
     const openRequest = useCallback(
         (req) => {
@@ -110,7 +110,7 @@ export function useTabs(workspaceId) {
             setTabs((ts) => [...ts, newReq]);
             setActiveTabId(newReq.id);
         },
-        [tabs],
+        [tabs, setActiveTabId, setTabs],
     );
 
     // Open (or focus) an environment editor tab. Stable id per environment.
@@ -121,13 +121,13 @@ export function useTabs(workspaceId) {
             return [...ts, { id, type: 'environment', envId: env.id, name: env.name }];
         });
         setActiveTabId(id);
-    }, []);
+    }, [setActiveTabId, setTabs]);
 
     const newTab = useCallback(() => {
         const t = DEFAULT_TAB();
         setTabs((ts) => [...ts, t]);
         setActiveTabId(t.id);
-    }, []);
+    }, [setActiveTabId, setTabs]);
 
     // Duplicate a tab (request tabs only; env tabs are singletons by env id).
     const duplicateTab = useCallback(
@@ -141,21 +141,21 @@ export function useTabs(workspaceId) {
             setTabs(next);
             setActiveTabId(copy.id);
         },
-        [tabs],
+        [tabs, setActiveTabId, setTabs],
     );
 
     // Close every tab except the given one.
     const closeOthers = useCallback((id) => {
         setTabs((ts) => ts.filter((t) => t.id === id));
         setActiveTabId(id);
-    }, []);
+    }, [setActiveTabId, setTabs]);
 
     // Close all tabs -> open a single fresh request tab.
     const closeAll = useCallback(() => {
         const fresh = DEFAULT_TAB();
         setTabs([fresh]);
         setActiveTabId(fresh.id);
-    }, []);
+    }, [setActiveTabId, setTabs]);
 
     // Closing the last tab opens a fresh one. State is computed from the
     // current render values (never inside a setTabState updater) so activeTabId
@@ -175,7 +175,7 @@ export function useTabs(workspaceId) {
                 setActiveTabId(next[Math.max(0, idx - 1)].id);
             }
         },
-        [tabs, activeTabId],
+        [tabs, activeTabId, setActiveTabId, setTabs],
     );
 
     return {

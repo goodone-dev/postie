@@ -107,8 +107,8 @@ export default function AppWorkspace() {
                         const payload = { ...activeTab, name };
                         const res = await data.addRequest(colId, folderId, payload);
                         if (res) {
-                            tabsApi.updateTab({ id: activeTab.id, sourceId: res.id, name, colId, folderId });
-                            tabsApi.markClean(activeTab.id);
+                            updateTab({ id: activeTab.id, sourceId: res.id, name, colId, folderId });
+                            markClean(activeTab.id);
                         }
                     }
                 }
@@ -145,7 +145,7 @@ export default function AppWorkspace() {
         } catch (err) {
             console.error('Failed to save request:', err);
         }
-    }, [activeTab, markClean, data]);
+    }, [activeTab, markClean, updateTab, data]);
 
     // Keyboard shortcut: Cmd/Ctrl+S to save
     useEffect(() => {

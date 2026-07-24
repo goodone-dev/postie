@@ -168,7 +168,7 @@ const ResponseFormatTabs = () => {
 };
 
 const JSONViewer = ({ code }) => {
-    const tokens = useMemo(() => tokenizeJSON(code), [code, tokenizeJSON]);
+    const tokens = useMemo(() => tokenizeJSON(code), [code]);
     const lineCount = useMemo(() => code.split('\n').length, [code]);
     return (
         <ScrollArea className="h-full">
